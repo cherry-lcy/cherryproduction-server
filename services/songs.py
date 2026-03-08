@@ -1,6 +1,6 @@
 from sqlalchemy import select, asc, desc, and_
 from models.songs import SongsModel
-from resources import db
+from extentions import db
 
 class SongsServices():
     def get_song_by_id(self, id):
@@ -16,6 +16,10 @@ class SongsServices():
     
     def get_songs_by_artist(self, artist):
         query = select(SongsModel).where(SongsModel.artist == artist)
+        return db.session.scalars(query).all()
+    
+    def get_songs_by_type(self, type):
+        query = select(SongsModel).where(SongsModel.type == type)
         return db.session.scalars(query).all()
     
     def get_songs_by_title_and_artist(self, title, artist):
@@ -59,6 +63,7 @@ class SongsServices():
         
         song.title = song_model.title if song_model.title else song.title
         song.artist = song_model.artist if song_model.artist else song.artist
+        song.type = song_model.type if song_model.type else song.type
         song.release_date = song_model.release_date if song_model.release_date else song.release_date
         song.audio_url = song_model.audio_url if song_model.audio_url else song.audio_url
         song.video_url = song_model.video_url if song_model.video_url else song.video_url

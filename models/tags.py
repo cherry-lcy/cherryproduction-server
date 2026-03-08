@@ -3,14 +3,14 @@ from sqlalchemy import String, BigInteger, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import datetime
-from resources import db
+from extentions import db
 
 class TagsModel(db.Model):
     __tablename__ = "Tags"
     
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tag: Mapped[str] = mapped_column(String(100), nullable=False)
-    sid: Mapped[int] = mapped_column(BigInteger, ForeignKey('Songs.id'), nullable=False)
+    sid: Mapped[int] = mapped_column(ForeignKey('Songs.id'), nullable=False)
     
     song = relationship("SongsModel", backref="tags")
 

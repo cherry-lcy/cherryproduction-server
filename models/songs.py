@@ -3,7 +3,7 @@ from sqlalchemy import String, BigInteger
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
-from resources import db
+from extentions import db
 
 class SongsModel(db.Model):
     __tablename__ = "Songs"
@@ -15,6 +15,7 @@ class SongsModel(db.Model):
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     artist: Mapped[str] = mapped_column(String(100), nullable=False)
+    type: Mapped[str] = mapped_column(String(20), nullable=False)
     release_date: Mapped[datetime] = mapped_column(nullable=False)
     audio_url: Mapped[str] = mapped_column(String(500), nullable=False)
     video_url: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -32,6 +33,7 @@ class SongsModel(db.Model):
             "id": self.id,
             "title": self.title,
             "artist": self.artist,
+            "type": self.type,
             "release_date": self.release_date.isoformat() if self.release_date else None,
             "audio_url": self.audio_url,
             "video_url": self.video_url,
