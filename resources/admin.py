@@ -2,6 +2,9 @@ from flask_restful import Resource
 from flask import request
 import os
 from utils.auth import generate_token
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class AdminResource(Resource):
     def post(self):

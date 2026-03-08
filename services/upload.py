@@ -24,61 +24,79 @@ class CloudinaryService:
         self.app = app
     
     def upload_audio(self, audio_file, title, artist):
+        temp_path = None
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as temp_file:
                 audio_file.save(temp_file.name)
-                
-                upload_result = cloudinary.uploader.upload(
-                    temp_file.name,
-                    resource_type="video",
-                    public_id=f"songs/{artist}_{title}",
-                    folder="music_site/audio",
-                    tags=[artist, "music", "audio"]
-                )
-                
-                os.unlink(temp_file.name)
-                
-                return {
-                    'url': upload_result['secure_url'],
-                    'public_id': upload_result['public_id'],
-                    'duration': upload_result.get('duration', 0),
-                    'format': upload_result.get('format', 'mp3'),
-                    'bytes': upload_result.get('bytes', 0),
-                    'created_at': upload_result.get('created_at')
-                }
+                temp_path = temp_file.name
+            
+            upload_result = cloudinary.uploader.upload(
+                temp_path,
+                resource_type="video",
+                public_id=f"songs/{artist}_{title}",
+                folder="music_site/audio",
+                tags=[artist, "music", "audio"]
+            )
+            
+            return {
+                'url': upload_result['secure_url'],
+                'public_id': upload_result['public_id'],
+                'duration': upload_result.get('duration', 0),
+                'format': upload_result.get('format', 'mp3'),
+                'bytes': upload_result.get('bytes', 0),
+                'created_at': upload_result.get('created_at')
+            }
         except Exception as e:
             print(f"Fail to upload audio: {e}")
             return None
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.unlink(temp_path)
+                except Exception as e:
+                    print(f"Failed to delete temp file {temp_path}: {e}")
     
     def upload_image(self, image_file, title, folder="covers"):
+        temp_path = None
         try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+            original_filename = secure_filename(image_file.filename)
+            file_ext = os.path.splitext(original_filename)[1].lower()
+            if not file_ext:
+                file_ext = '.jpg'
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
                 image_file.save(temp_file.name)
-                
-                upload_result = cloudinary.uploader.upload(
-                    temp_file.name,
-                    resource_type="image",
-                    public_id=f"{folder}/{title}",
-                    folder="music_site/images",
-                    tags=[title, "image"]
-                )
-                
-                os.unlink(temp_file.name)
-                
-                return {
-                    'url': upload_result['secure_url'],
-                    'public_id': upload_result['public_id'],
-                    'width': upload_result.get('width'),
-                    'height': upload_result.get('height'),
-                    'format': upload_result.get('format'),
-                    'bytes': upload_result.get('bytes', 0),
-                    'created_at': upload_result.get('created_at')
-                }
+                temp_path = temp_file.name
+            
+            upload_result = cloudinary.uploader.upload(
+                temp_path,
+                resource_type="image",
+                public_id=f"{folder}/{title}",
+                folder="music_site/images",
+                tags=["image"]
+            )
+            
+            return {
+                'url': upload_result['secure_url'],
+                'public_id': upload_result['public_id'],
+                'width': upload_result.get('width'),
+                'height': upload_result.get('height'),
+                'format': upload_result.get('format'),
+                'bytes': upload_result.get('bytes', 0),
+                'created_at': upload_result.get('created_at')
+            }
         except Exception as e:
             print(f"Fail to upload image: {e}")
             return None
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.unlink(temp_path)
+                except Exception as e:
+                    print(f"Failed to delete temp file {temp_path}: {e}")
     
     def upload_pdf(self, pdf_file, title, artist):
+        temp_path = None
         try:
             original_filename = secure_filename(pdf_file.filename)
             file_ext = os.path.splitext(original_filename)[1].lower()
@@ -89,95 +107,120 @@ class CloudinaryService:
             
             with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
                 pdf_file.save(temp_file.name)
-                
-                folder_path = "music_site/pdf"
-                safe_title = secure_filename(title)
-                public_id = f"{safe_title}_{int(time.time())}"
-                
-                upload_result = cloudinary.uploader.upload(
-                    temp_file.name,
-                    resource_type="raw",
-                    public_id=public_id,
-                    folder=folder_path,
-                    tags=[title, "pdf"],
-                    context={
-                        'caption': title,
-                        'alt': title,
-                        'original_filename': original_filename
-                    }
-                )
-                
-                os.unlink(temp_file.name)
-                
-                return {
-                    'url': upload_result['secure_url'],
-                    'public_id': upload_result['public_id'],
-                    'format': upload_result.get('format', 'pdf'),
-                    'bytes': upload_result.get('bytes', 0),
-                    'created_at': upload_result.get('created_at'),
-                    'folder': folder_path,
-                    'title': title,
-                    'artist': artist,
+                temp_path = temp_file.name
+            
+            folder_path = "music_site/pdf"
+            safe_title = secure_filename(title)
+            public_id = f"{safe_title}_{int(time.time())}"
+            
+            upload_result = cloudinary.uploader.upload(
+                temp_path,
+                resource_type="raw",
+                public_id=public_id,
+                folder=folder_path,
+                tags=["pdf", artist],
+                context={
+                    'caption': title,
+                    'alt': title,
                     'original_filename': original_filename
                 }
+            )
+            # Debug: confirm where the file was stored
+            cfg = cloudinary.config()
+            print(
+                f"[Cloudinary upload_pdf] cloud_name={cfg.cloud_name}, "
+                f"public_id={upload_result.get('public_id')}, "
+                f"url={upload_result.get('secure_url')}"
+            )
+
+            return {
+                'url': upload_result['secure_url'],
+                'public_id': upload_result['public_id'],
+                'format': upload_result.get('format', 'pdf'),
+                'bytes': upload_result.get('bytes', 0),
+                'created_at': upload_result.get('created_at'),
+                'folder': folder_path,
+                'title': title,
+                'artist': artist,
+                'original_filename': original_filename
+            }
                 
         except Exception as e:
             print(f"Fail to upload PDF: {e}")
             return None
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.unlink(temp_path)
+                except Exception as e:
+                    print(f"Failed to delete temp file {temp_path}: {e}")
     
-    def upload_pdf_with_watermark(self, pdf_file, title, artist, watermark_text="Cherry"):
-        temp_files = []
+    def upload_pdf_with_watermark(self, pdf_file, title, artist, watermark_text=None):
+        temp_input_path = None
+        temp_output_path = None
+        temp_upload_path = None
+        
         try:
             if watermark_text is None:
                 watermark_text = f"{artist} - {title}"
             
+            original_filename = secure_filename(pdf_file.filename)
+            
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_input:
                 pdf_file.save(temp_input.name)
                 temp_input_path = temp_input.name
-                temp_files.append(temp_input_path)
             
-            with tempfile.NamedTemporaryFile(delete=False, suffix='_watermarked.pdf') as temp_output:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_output:
                 temp_output_path = temp_output.name
-                temp_files.append(temp_output_path)
             
             add_watermark_to_pdf_memory(
                 temp_input_path,
                 temp_output_path,
                 watermark_text
             )
+
+            from werkzeug.datastructures import FileStorage
+            from io import BytesIO
             
             with open(temp_output_path, 'rb') as f:
-                watermarked_file = FileStorage(
-                    stream=open(temp_output_path, 'rb'),
-                    filename=f"{pdf_file.filename}_watermarked",
-                    content_type='application/pdf'
-                )
-
-                result = self.upload_pdf(
-                    pdf_file=watermarked_file,
-                    title=title,
-                    artist=artist
-                )
-                
-                watermarked_file.close()
-                
-                if result:
-                    result['watermarked'] = True
-                    result['watermark_text'] = watermark_text
-                
-                return result
-                
+                watermarked_content = f.read()
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_upload:
+                temp_upload.write(watermarked_content)
+                temp_upload_path = temp_upload.name
+            
+            watermarked_file = FileStorage(
+                stream=open(temp_upload_path, 'rb'),
+                filename=f"watermarked_{original_filename}",
+                content_type='application/pdf'
+            )
+            
+            result = self.upload_pdf(
+                pdf_file=watermarked_file,
+                title=title,
+                artist=artist
+            )
+            
+            watermarked_file.close()
+            
+            if result:
+                result['watermarked'] = True
+                result['watermark_text'] = watermark_text
+            
+            return result
+            
         except Exception as e:
-            print(f"Fail to upload pdf: {e}")
+            print(f"Fail to upload: {e}")
             return None
         
         finally:
-            for temp_file in temp_files:
-                try:
-                    if os.path.exists(temp_file):
+            for temp_file in [temp_input_path, temp_output_path, temp_upload_path]:
+                if temp_file and os.path.exists(temp_file):
+                    try:
+                        time.sleep(0.1)
                         os.unlink(temp_file)
-                except Exception as e:
-                    print(f"Fail to clean temp file: {e}")
+                    except Exception as e:
+                        print(f"Fail to delete temp file {temp_file}: {e}")
     
     def get_all_images(self, max_results=100):
         try:
@@ -305,13 +348,73 @@ class CloudinaryService:
                 return None
             
             resource_type = self.get_resource_type_from_url(url)
-            
-            result = cloudinary.api.resource(
-                public_id,
-                resource_type=resource_type
+            cfg = cloudinary.config()
+            print(
+                f"[Cloudinary get_file_info_by_url] url={url}, "
+                f"derived_public_id={public_id}, "
+                f"resource_type={resource_type}, "
+                f"cloud_name={cfg.cloud_name}"
             )
-            
-            return self._format_resource(result, resource_type)
+            # First, try the direct resource lookup
+            try:
+                result = cloudinary.api.resource(
+                    public_id,
+                    resource_type=resource_type
+                )
+                return self._format_resource(result, resource_type)
+            except Exception as e:
+                # If the direct lookup says "resource not found" but we know the URL works,
+                # fall back to a search by public_id which is sometimes more forgiving
+                msg = str(e)
+                if "Resource not found" not in msg:
+                    print(f"Fail to get file info by URL (direct lookup error): {e}")
+                    return None
+
+                try:
+                    print(f"[Cloudinary get_file_info_by_url] direct lookup 404, falling back to Search for public_id={public_id}")
+                    search = cloudinary.Search()
+                    search.expression(f'public_id="{public_id}"')
+                    search.max_results(1)
+                    search_result = search.execute()
+                    resources = search_result.get("resources", [])
+                    if resources:
+                        resource = resources[0]
+                        rt = resource.get("resource_type", resource_type)
+                        return self._format_resource(resource, rt)
+
+                    # If neither direct lookup nor Search by public_id (without extension)
+                    # finds the resource, try again with a ".pdf" suffix for raw assets.
+                    if resource_type == "raw":
+                        alt_public_id = f"{public_id}.pdf"
+                        print(f"[Cloudinary get_file_info_by_url] No match for '{public_id}', trying alt_public_id='{alt_public_id}'")
+                        try:
+                            result_alt = cloudinary.api.resource(
+                                alt_public_id,
+                                resource_type=resource_type
+                            )
+                            return self._format_resource(result_alt, resource_type)
+                        except Exception as e_alt:
+                            print(f"[Cloudinary get_file_info_by_url] Alt direct lookup failed for '{alt_public_id}': {e_alt}")
+                            # Final fallback: Search by alt_public_id
+                            try:
+                                search_alt = cloudinary.Search()
+                                search_alt.expression(f'public_id="{alt_public_id}"')
+                                search_alt.max_results(1)
+                                search_result_alt = search_alt.execute()
+                                resources_alt = search_result_alt.get("resources", [])
+                                if resources_alt:
+                                    resource_alt = resources_alt[0]
+                                    rt_alt = resource_alt.get("resource_type", resource_type)
+                                    return self._format_resource(resource_alt, rt_alt)
+                                print(f"[Cloudinary get_file_info_by_url] Search also did not find resource for alt_public_id={alt_public_id}")
+                            except Exception as e_alt_search:
+                                print(f"Fail to get file info by URL via Search (alt_public_id): {e_alt_search}")
+
+                    print(f"[Cloudinary get_file_info_by_url] Search also did not find resource for public_id={public_id}")
+                    return None
+                except Exception as e2:
+                    print(f"Fail to get file info by URL via Search: {e2}")
+                    return None
         except Exception as e:
             print(f"Fail to get file info by URL: {e}")
             return None
