@@ -3,6 +3,7 @@ from flask import request
 from services.songs import SongsServices
 from models.songs import SongsModel
 from services.upload import CloudinaryService
+from utils.auth import admin_required
 
 class SongsResources(Resource):
     def get(self):
@@ -30,6 +31,7 @@ class SongsResources(Resource):
             "total": len(songs_with_covers)
         }, 200
     
+    @admin_required
     def post(self):
         try:
             new_title = request.form.get("title")
@@ -50,7 +52,7 @@ class SongsResources(Resource):
                 artist=new_artist
             )
             
-            pdf_info = cloudinary_service.upload_pdf(
+            pdf_info = cloudinary_service.upload_pdf_with_watermark(
                 pdf_file=pdf, 
                 title=new_title, 
                 artist=new_artist
@@ -128,6 +130,7 @@ class SongResources(Resource):
         else:
             return {"error": f"Song (id: {id}) is not found."}, 404
         
+    @admin_required
     def put(self, id):
         """
         update song information
@@ -155,6 +158,7 @@ class SongResources(Resource):
         except Exception as err:
             return {"error": f"{err}"}, 400
         
+    @admin_required
     def delete(self, id):
         try:
             deleted_song = SongsServices().delete_song(id)

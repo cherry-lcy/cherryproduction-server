@@ -1,5 +1,5 @@
 from sqlalchemy import select, asc
-from extentions import db
+from extensions import db
 from models.tags import TagsModel
 
 class TagsServices():
@@ -15,9 +15,11 @@ class TagsServices():
         return db.session.scalars(query).all()
     
     def add_tag(self, tag_model):
-        tag = self.get_tag_by_sid(tag_model.sid)
-        if tag.tag == tag_model.tag:
-            raise Exception(f"For song {tag_model.id}, tag {tag_model.tag} already exists.")
+        existing_tags = self.get_tag_by_sid(tag_model.sid)
+        if any(t.tag == tag_model.tag for t in existing_tags):
+            raise Exception(
+                f"For song {tag_model.sid}, tag '{tag_model.tag}' already exists."
+            )
         
         db.session.add(tag_model)
         db.session.commit()
@@ -28,7 +30,7 @@ class TagsServices():
         if not tag:
             raise Exception(f"Tag (id: {id}) does not exist.")
         
-        db.session.delete(id)
+        db.session.delete(tag)
         db.session.commit()
         return True
     

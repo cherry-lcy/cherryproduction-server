@@ -6,6 +6,8 @@ import os
 from werkzeug.utils import secure_filename
 import tempfile
 import time
+from utils.pdf import add_watermark_to_pdf_memory
+from werkzeug.datastructures import FileStorage
 
 class CloudinaryService:
     def __init__(self, app=None):
@@ -122,6 +124,60 @@ class CloudinaryService:
         except Exception as e:
             print(f"Fail to upload PDF: {e}")
             return None
+    
+    def upload_pdf_with_watermark(self, pdf_file, title, artist, watermark_text="Cherry"):
+        temp_files = []
+        try:
+            if watermark_text is None:
+                watermark_text = f"{artist} - {title}"
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_input:
+                pdf_file.save(temp_input.name)
+                temp_input_path = temp_input.name
+                temp_files.append(temp_input_path)
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='_watermarked.pdf') as temp_output:
+                temp_output_path = temp_output.name
+                temp_files.append(temp_output_path)
+            
+            add_watermark_to_pdf_memory(
+                temp_input_path,
+                temp_output_path,
+                watermark_text
+            )
+            
+            with open(temp_output_path, 'rb') as f:
+                watermarked_file = FileStorage(
+                    stream=open(temp_output_path, 'rb'),
+                    filename=f"{pdf_file.filename}_watermarked",
+                    content_type='application/pdf'
+                )
+
+                result = self.upload_pdf(
+                    pdf_file=watermarked_file,
+                    title=title,
+                    artist=artist
+                )
+                
+                watermarked_file.close()
+                
+                if result:
+                    result['watermarked'] = True
+                    result['watermark_text'] = watermark_text
+                
+                return result
+                
+        except Exception as e:
+            print(f"Fail to upload pdf: {e}")
+            return None
+        
+        finally:
+            for temp_file in temp_files:
+                try:
+                    if os.path.exists(temp_file):
+                        os.unlink(temp_file)
+                except Exception as e:
+                    print(f"Fail to clean temp file: {e}")
     
     def get_all_images(self, max_results=100):
         try:

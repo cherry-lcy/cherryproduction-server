@@ -1,6 +1,6 @@
 from sqlalchemy import select, asc, desc, and_
 from models.songs import SongsModel
-from extentions import db
+from extensions import db
 
 class SongsServices():
     def get_song_by_id(self, id):

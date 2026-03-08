@@ -3,7 +3,7 @@ from sqlalchemy import String, BigInteger
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
-from extentions import db
+from extensions import db
 
 class SongsModel(db.Model):
     __tablename__ = "Songs"

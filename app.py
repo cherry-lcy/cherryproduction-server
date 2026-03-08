@@ -1,7 +1,7 @@
+# app.py
 from flask import Flask
-from extentions import db, cors, api
+from extensions import db, cors, api
 from config import Config
-from resources import register_routes
 
 def create_app():
     app = Flask(__name__)
@@ -9,17 +9,19 @@ def create_app():
     
     db.init_app(app)
     cors.init_app(app)
+
+    from resources import register_routes
+    register_routes(api)  # must run before init_app so routes are registered
     api.init_app(app)
     
     with app.app_context():
+        from models.songs import SongsModel
+        from models.tags import TagsModel
         db.create_all()
-
-    register_routes(api)
     
     return app
 
 app = create_app()
-app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+mysqldb://root:Cherry5052005@localhost/Web_Ex"
 
 if __name__ == '__main__':
     app.run(debug=True)

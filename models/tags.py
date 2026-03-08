@@ -3,7 +3,7 @@ from sqlalchemy import String, BigInteger, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import datetime
-from extentions import db
+from extensions import db
 
 class TagsModel(db.Model):
     __tablename__ = "Tags"

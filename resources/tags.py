@@ -3,6 +3,7 @@ from flask import request
 from services.songs import SongsServices
 from services.tags import TagsServices
 from models.tags import TagsModel
+from utils.auth import admin_required
 
 class TagsResources(Resource):
     def get(self):
@@ -16,10 +17,12 @@ class TagResources(Resource):
         song = SongsServices().get_song_by_title(title)
         if not song:
             return {"error": f"Song {title} is not found."}
-        tags = TagsServices().get_tag_by_title(title)
+        tags = TagsServices().get_tag_by_sid(song.id)
         return {
             "tags": [tag.serialize() for tag in tags]
-        }
+        }, 200
+    
+    @admin_required
     def post(self, title):
         try:
             song = SongsServices().get_song_by_title(title)
@@ -29,14 +32,16 @@ class TagResources(Resource):
             if new_tag:
                 new_tag_label = new_tag.get("tag")
 
-                tag_model = TagsModel(tag=new_tag_label)
+                tag_model = TagsModel(tag=new_tag_label, sid=song.id)
                 tag_model = TagsServices().add_tag(tag_model)
 
                 return {
                     "tag": tag_model.serialize()
                 }, 200
         except Exception as err:
-            return {"error": f"{err}"}
+            return {"error": f"{err}"}, 400
+        
+    @admin_required
     def delete(self, title):
         try:
             song = SongsServices().get_song_by_title(title)
@@ -58,6 +63,8 @@ class TagByIdResource(Resource):
             return {"tag": tag.serialize()}, 200
         else:
             return {"error": f"Tag (id: {id}) is not found."}, 404
+        
+    @admin_required
     def delete(self, id):
         try: 
             tag = TagsServices().delete_tag(id)
