@@ -1,6 +1,7 @@
 from sqlalchemy import select, asc, desc, and_
 from models.songs import SongsModel
 from extensions import db
+from services.tags import TagsServices
 
 class SongsServices():
     def get_song_by_id(self, id):
@@ -77,6 +78,12 @@ class SongsServices():
         song = self.get_song_by_id(id) 
         if not song:
             raise Exception(f"Song (id: {id}) is not found.")
+        
+        try:
+            tags_service = TagsServices()
+            tags_service.delete_tag_by_sid(id)
+        except Exception as e:
+            print(f"Warning when deleting tags: {e}")
         
         db.session.delete(song)
         db.session.commit()

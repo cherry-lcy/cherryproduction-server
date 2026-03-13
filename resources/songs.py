@@ -90,6 +90,27 @@ class SongsResources(Resource):
 
         except Exception as err:
             return {"error": str(err)}, 500
+        
+    @admin_required
+    def delete(self):
+        try:
+            del_song = request.json
+
+            song = SongsServices().get_songs_by_title_and_artist(del_song.get("title"), del_song.get("artist"))
+
+            if song:
+                del_audio = CloudinaryService().delete_file_by_url(song.audio_url)
+                del_pdf = CloudinaryService().delete_file_by_url(song.pdf_url)
+                del_cover = CloudinaryService().delete_file_by_url(song.cover_url)
+
+                deleted_song = SongsServices().delete_song(song.id)
+                
+                if del_audio and del_cover and del_pdf and deleted_song:
+                    return {"message": "success"}, 200
+            
+            return {"error": f"Fail to delete song (id: {song.id})"}, 400
+        except Exception as err:
+            return {"error": f"{err}"}, 400
 
 class SongResources(Resource):
     def get(self, id):
@@ -161,8 +182,14 @@ class SongResources(Resource):
     @admin_required
     def delete(self, id):
         try:
+            song = SongsServices().get_song_by_id(id)
+
+            del_audio = CloudinaryService().delete_file_by_url(song.audio_url)
+            del_pdf = CloudinaryService().delete_file_by_url(song.pdf_url)
+            del_cover = CloudinaryService().delete_file_by_url(song.cover_url)
+
             deleted_song = SongsServices().delete_song(id)
-            if deleted_song:
+            if deleted_song and del_audio and del_pdf and del_cover:
                 return {"message": "success"}, 200
             else:
                 return {"error": f"Fail to delete song (id: {id})"}, 400

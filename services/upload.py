@@ -155,14 +155,14 @@ class CloudinaryService:
                 except Exception as e:
                     print(f"Failed to delete temp file {temp_path}: {e}")
     
-    def upload_pdf_with_watermark(self, pdf_file, title, artist, watermark_text=None):
+    def upload_pdf_with_watermark(self, pdf_file, title, artist, watermark_text="Cherry"):
         temp_input_path = None
         temp_output_path = None
         temp_upload_path = None
         
         try:
             if watermark_text is None:
-                watermark_text = f"{artist} - {title}"
+                watermark_text = "Cherry"
             
             original_filename = secure_filename(pdf_file.filename)
             
@@ -339,7 +339,7 @@ class CloudinaryService:
         elif '/raw/' in url or '/raw/upload/' in url:
             return "raw"
         else:
-            return "raw"  # 默认
+            return "raw"
     
     def get_file_info_by_url(self, url):
         try:
@@ -437,8 +437,38 @@ class CloudinaryService:
                 return False
             
             resource_type = self.get_resource_type_from_url(url)
-            
-            return self.delete_file(public_id, resource_type)
+            candidates = [public_id]
+            if resource_type == "raw":
+                candidates.append(f"{public_id}.pdf")
+
+            deleted_any = False
+            for pid in candidates:
+                ok = self.delete_file(pid, resource_type)
+                print(f"[Cloudinary delete_file_by_url] destroy(public_id='{pid}', resource_type='{resource_type}') -> {ok}")
+                deleted_any = deleted_any or ok
+
+            if deleted_any:
+                return True
+
+            try:
+                from cloudinary import Search
+                for pid in candidates:
+                    print(f"[Cloudinary delete_file_by_url] direct delete failed, searching for public_id='{pid}'")
+                    search = Search()
+                    search.expression(f'public_id="{pid}"')
+                    search.max_results(5)
+                    result = search.execute()
+                    resources = result.get("resources", [])
+                    for res in resources:
+                        actual_pid = res.get("public_id")
+                        rt = res.get("resource_type", resource_type)
+                        ok = self.delete_file(actual_pid, rt)
+                        print(f"[Cloudinary delete_file_by_url] destroy(actual_public_id='{actual_pid}', resource_type='{rt}') -> {ok}")
+                        deleted_any = deleted_any or ok
+                return deleted_any
+            except Exception as e:
+                print(f"[Cloudinary delete_file_by_url] Search-based delete failed: {e}")
+                return deleted_any
         except Exception as e:
             print(f"Fail to delete file by URL: {e}")
             return False
