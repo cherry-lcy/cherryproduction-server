@@ -1,3 +1,4 @@
+import base64
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
@@ -8,6 +9,8 @@ import tempfile
 import time
 from utils.pdf import add_watermark_to_pdf_memory
 from werkzeug.datastructures import FileStorage
+import requests
+from flask import Response
 
 class CloudinaryService:
     def __init__(self, app=None):
@@ -341,7 +344,7 @@ class CloudinaryService:
         else:
             return "raw"
     
-    def get_file_info_by_url(self, url):
+    def get_file_info_by_url(self, url, include_binary=False):
         try:
             public_id = self.get_public_id_from_url(url)
             if not public_id:
@@ -355,16 +358,28 @@ class CloudinaryService:
                 f"resource_type={resource_type}, "
                 f"cloud_name={cfg.cloud_name}"
             )
-            # First, try the direct resource lookup
+            
+            # Try direct resource lookup
             try:
                 result = cloudinary.api.resource(
                     public_id,
                     resource_type=resource_type
                 )
-                return self._format_resource(result, resource_type)
+                file_info = self._format_resource(result, resource_type)
+                
+                # Include binary for raw files if requested
+                if include_binary and resource_type == "raw":
+                    binary_result = self._fetch_pdf_binary(url)
+                    if binary_result:
+                        file_info['binary'] = binary_result['data']
+                        file_info['binary_length'] = binary_result['length']
+                    else:
+                        print(f"[Cloudinary get_file_info_by_url] Failed to fetch binary for {url}")
+                
+                return file_info
+                
             except Exception as e:
-                # If the direct lookup says "resource not found" but we know the URL works,
-                # fall back to a search by public_id which is sometimes more forgiving
+                # If direct lookup fails, fall back to search
                 msg = str(e)
                 if "Resource not found" not in msg:
                     print(f"Fail to get file info by URL (direct lookup error): {e}")
@@ -377,24 +392,45 @@ class CloudinaryService:
                     search.max_results(1)
                     search_result = search.execute()
                     resources = search_result.get("resources", [])
+                    
                     if resources:
                         resource = resources[0]
                         rt = resource.get("resource_type", resource_type)
-                        return self._format_resource(resource, rt)
+                        file_info = self._format_resource(resource, rt)
+                        
+                        # Include binary for raw files if requested
+                        if include_binary and rt == "raw":
+                            binary_result = self._fetch_pdf_binary(url)
+                            if binary_result:
+                                file_info['binary'] = binary_result['data']
+                                file_info['binary_length'] = binary_result['length']
+                        
+                        return file_info
 
-                    # If neither direct lookup nor Search by public_id (without extension)
-                    # finds the resource, try again with a ".pdf" suffix for raw assets.
+                    # Try with .pdf suffix for raw assets
                     if resource_type == "raw":
                         alt_public_id = f"{public_id}.pdf"
                         print(f"[Cloudinary get_file_info_by_url] No match for '{public_id}', trying alt_public_id='{alt_public_id}'")
+                        
                         try:
                             result_alt = cloudinary.api.resource(
                                 alt_public_id,
                                 resource_type=resource_type
                             )
-                            return self._format_resource(result_alt, resource_type)
+                            file_info = self._format_resource(result_alt, resource_type)
+                            
+                            # Include binary for raw files if requested
+                            if include_binary:
+                                binary_result = self._fetch_pdf_binary(url)
+                                if binary_result:
+                                    file_info['binary'] = binary_result['data']
+                                    file_info['binary_length'] = binary_result['length']
+                            
+                            return file_info
+                            
                         except Exception as e_alt:
                             print(f"[Cloudinary get_file_info_by_url] Alt direct lookup failed for '{alt_public_id}': {e_alt}")
+                            
                             # Final fallback: Search by alt_public_id
                             try:
                                 search_alt = cloudinary.Search()
@@ -402,21 +438,82 @@ class CloudinaryService:
                                 search_alt.max_results(1)
                                 search_result_alt = search_alt.execute()
                                 resources_alt = search_result_alt.get("resources", [])
+                                
                                 if resources_alt:
                                     resource_alt = resources_alt[0]
                                     rt_alt = resource_alt.get("resource_type", resource_type)
-                                    return self._format_resource(resource_alt, rt_alt)
+                                    file_info = self._format_resource(resource_alt, rt_alt)
+                                    
+                                    # Include binary for raw files if requested
+                                    if include_binary and rt_alt == "raw":
+                                        binary_result = self._fetch_pdf_binary(url)
+                                        if binary_result:
+                                            file_info['binary'] = binary_result['data']
+                                            file_info['binary_length'] = binary_result['length']
+                                    
+                                    return file_info
+                                    
                                 print(f"[Cloudinary get_file_info_by_url] Search also did not find resource for alt_public_id={alt_public_id}")
                             except Exception as e_alt_search:
                                 print(f"Fail to get file info by URL via Search (alt_public_id): {e_alt_search}")
 
                     print(f"[Cloudinary get_file_info_by_url] Search also did not find resource for public_id={public_id}")
                     return None
+                    
                 except Exception as e2:
                     print(f"Fail to get file info by URL via Search: {e2}")
                     return None
+                    
         except Exception as e:
             print(f"Fail to get file info by URL: {e}")
+            return None
+    
+    def _fetch_pdf_binary(self, pdf_url):
+        try:
+            # Extract public_id and generate signed URL for download
+            public_id = self.get_public_id_from_url(pdf_url)
+            if not public_id:
+                # Try direct fetch
+                response = requests.get(pdf_url, timeout=30)
+                if response.status_code == 200:
+                    return {
+                        'data': base64.b64encode(response.content).decode('ascii'),
+                        'length': len(response.content)
+                    }
+                return None
+            
+            # Generate signed URL with inline flag
+            cfg = cloudinary.config()
+            
+            # Try multiple URL formats
+            urls_to_try = [
+                # Original URL
+                pdf_url,
+                # URL with fl_inline flag
+                pdf_url.replace('/raw/upload/', '/raw/upload/fl_inline/'),
+                # API download URL with attachment=false
+                f"https://api.cloudinary.com/v1_1/{cfg.cloud_name}/raw/download?public_id={public_id}&attachment=false"
+            ]
+            
+            for url in urls_to_try:
+                try:
+                    response = requests.get(url, timeout=30)
+                    if response.status_code == 200:
+                        # Verify it's a PDF
+                        content_type = response.headers.get('content-type', '')
+                        if 'pdf' in content_type or response.content[:4] == b'%PDF':
+                            return {
+                                'data': base64.b64encode(response.content).decode('ascii'),
+                                'length': len(response.content)
+                            }
+                except Exception:
+                    continue
+            
+            print(f"[Cloudinary _fetch_pdf_binary] Failed to fetch PDF from all URL formats")
+            return None
+            
+        except Exception as e:
+            print(f"Error fetching PDF binary: {e}")
             return None
     
     def get_file_info_by_public_id(self, public_id, resource_type="raw"):

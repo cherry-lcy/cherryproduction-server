@@ -35,6 +35,18 @@ class SongsServices():
         query = select(SongsModel).order_by(order_func(col))
         return db.session.scalars(query).all()
     
+    def get_all_artist(self):
+        query = select(SongsModel.artist).distinct().order_by(asc(SongsModel.artist))
+        return db.session.scalars(query).all()
+    
+    def get_all_title(self, artist=None):
+        if artist:
+            query = select(SongsModel.title).distinct().where(SongsModel.artist == artist).order_by(asc(SongsModel.title))
+        else:
+            query = select(SongsModel.title).distinct().order_by(asc(SongsModel.title))
+
+        return db.session.scalars(query).all()
+    
     def add_song(self, song_model):
         existing = self.get_songs_by_title_and_artist(
             song_model.title, song_model.artist

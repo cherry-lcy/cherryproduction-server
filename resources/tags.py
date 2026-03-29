@@ -58,9 +58,10 @@ class TagResources(Resource):
         
 class TagByIdResource(Resource):
     def get(self, id):
-        tag = TagsServices().get_tag_by_id(id)
-        if tag:
-            return {"tag": tag.serialize()}, 200
+        tags = TagsServices().get_tag_by_sid(id)
+        print(f"tags: {tags}")
+        if tags:
+            return {"tags": [tag.serialize() for tag in tags]}, 200
         else:
             return {"error": f"Tag (id: {id}) is not found."}, 404
         

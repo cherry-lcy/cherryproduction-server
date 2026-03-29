@@ -2,6 +2,7 @@ from flask_restful import Resource
 from flask import request
 from services.songs import SongsServices
 from models.songs import SongsModel
+from services.tags import TagsServices
 from services.upload import CloudinaryService
 from utils.auth import admin_required
 
@@ -18,8 +19,8 @@ class SongsResources(Resource):
                 song_data['cover'] = {
                     'url': cover_info.get('url') if cover_info else None,
                     'bytes': cover_info.get('bytes') if cover_info else None,
-                    'width': cover_info.get('width'),
-                    'height': cover_info.get('height')
+                    'width': cover_info.get('width') if cover_info else None,
+                    'height': cover_info.get('height') if cover_info else None
                 }
             else:
                 song_data['cover'] = None
@@ -130,24 +131,31 @@ class SongResources(Resource):
                     'duration': audio_info.get('duration') if audio_info else None,
                     'format': audio_info.get('format') if audio_info else None
                 }
+            else:
+                song_data['audio'] = None
             
             if song_model.pdf_url:
-                pdf_info = cloudinary_service.get_file_info_by_url(song_model.pdf_url)
+                pdf_info = cloudinary_service.get_file_info_by_url(song_model.pdf_url, include_binary=True)
                 song_data['pdf'] = {
                     'bytes': pdf_info.get('bytes') if pdf_info else None,
-                    'format': pdf_info.get('format') if pdf_info else None
+                    'format': pdf_info.get('format') if pdf_info else None,
+                    'binary': pdf_info.get('binary') if pdf_info else None
                 }
+            else:
+                song_data['pdf'] = None
             
             if song_model.cover_url:
                 cover_info = cloudinary_service.get_file_info_by_url(song_model.cover_url)
                 song_data['cover'] = {
                     'url': cover_info.get('url') if cover_info else None,
                     'bytes': cover_info.get('bytes') if cover_info else None,
-                    'width': cover_info.get('width'),
-                    'height': cover_info.get('height')
+                    'width': cover_info.get('width') if cover_info else None,
+                    'height': cover_info.get('height') if cover_info else None
                 }
+            else:
+                song_data['cover'] = None
 
-            return song_data, 200
+            return {"data": song_data}, 200
         else:
             return {"error": f"Song (id: {id}) is not found."}, 404
         
@@ -211,6 +219,7 @@ class SearchResources(Resource):
         
         songs = SongsServices().get_all_songs()
         cloudinary_service = CloudinaryService()
+        tags_service = TagsServices()  # Initialize tags service
         
         filtered_songs = []
         for song in songs:
@@ -236,6 +245,11 @@ class SearchResources(Resource):
                     'url': cover_info.get('url') if cover_info else None,
                     'bytes': cover_info.get('bytes') if cover_info else None
                 }
+            else:
+                song_data['cover'] = None
+            
+            tags = tags_service.get_tag_by_sid(song.id)
+            song_data['tags'] = [tag.tag for tag in tags]
             
             filtered_songs.append(song_data)
         

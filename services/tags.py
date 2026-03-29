@@ -10,8 +10,12 @@ class TagsServices():
     def get_tag_by_id(self, id):
         return db.session.get(TagsModel, id)
     
-    def get_tag_by_sid(self, sid):
+    def get_tag_by_sid(self, sid):      
         query = select(TagsModel).where(TagsModel.sid == sid)
+        return db.session.scalars(query).all()
+    
+    def get_distinct_tag(self):
+        query = select(TagsModel.tag).distinct().order_by(asc(TagsModel.tag))
         return db.session.scalars(query).all()
     
     def add_tag(self, tag_model):
