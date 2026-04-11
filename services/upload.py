@@ -7,10 +7,8 @@ import os
 from werkzeug.utils import secure_filename
 import tempfile
 import time
-from utils.pdf import add_watermark_to_pdf_memory
 from werkzeug.datastructures import FileStorage
 import requests
-from flask import Response
 
 class CloudinaryService:
     def __init__(self, app=None):
@@ -38,7 +36,8 @@ class CloudinaryService:
                 resource_type="video",
                 public_id=f"songs/{artist}_{title}",
                 folder="music_site/audio",
-                tags=[artist, "music", "audio"]
+                tags=[artist, "music", "audio"],
+                type="upload"  # Make it publicly accessible
             )
             
             return {
@@ -76,7 +75,8 @@ class CloudinaryService:
                 resource_type="image",
                 public_id=f"{folder}/{title}",
                 folder="music_site/images",
-                tags=["image"]
+                tags=["image"],
+                type="upload"
             )
             
             return {
@@ -97,133 +97,6 @@ class CloudinaryService:
                     os.unlink(temp_path)
                 except Exception as e:
                     print(f"Failed to delete temp file {temp_path}: {e}")
-    
-    def upload_pdf(self, pdf_file, title, artist):
-        temp_path = None
-        try:
-            original_filename = secure_filename(pdf_file.filename)
-            file_ext = os.path.splitext(original_filename)[1].lower()
-            
-            if file_ext != '.pdf':
-                print(f"Error: File is not PDF: {file_ext}")
-                return None
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
-                pdf_file.save(temp_file.name)
-                temp_path = temp_file.name
-            
-            folder_path = "music_site/pdf"
-            safe_title = secure_filename(title)
-            public_id = f"{safe_title}_{int(time.time())}"
-            
-            upload_result = cloudinary.uploader.upload(
-                temp_path,
-                resource_type="raw",
-                public_id=public_id,
-                folder=folder_path,
-                tags=["pdf", artist],
-                context={
-                    'caption': title,
-                    'alt': title,
-                    'original_filename': original_filename
-                }
-            )
-            # Debug: confirm where the file was stored
-            cfg = cloudinary.config()
-            print(
-                f"[Cloudinary upload_pdf] cloud_name={cfg.cloud_name}, "
-                f"public_id={upload_result.get('public_id')}, "
-                f"url={upload_result.get('secure_url')}"
-            )
-
-            return {
-                'url': upload_result['secure_url'],
-                'public_id': upload_result['public_id'],
-                'format': upload_result.get('format', 'pdf'),
-                'bytes': upload_result.get('bytes', 0),
-                'created_at': upload_result.get('created_at'),
-                'folder': folder_path,
-                'title': title,
-                'artist': artist,
-                'original_filename': original_filename
-            }
-                
-        except Exception as e:
-            print(f"Fail to upload PDF: {e}")
-            return None
-        finally:
-            if temp_path and os.path.exists(temp_path):
-                try:
-                    os.unlink(temp_path)
-                except Exception as e:
-                    print(f"Failed to delete temp file {temp_path}: {e}")
-    
-    def upload_pdf_with_watermark(self, pdf_file, title, artist, watermark_text="Cherry"):
-        temp_input_path = None
-        temp_output_path = None
-        temp_upload_path = None
-        
-        try:
-            if watermark_text is None:
-                watermark_text = "Cherry"
-            
-            original_filename = secure_filename(pdf_file.filename)
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_input:
-                pdf_file.save(temp_input.name)
-                temp_input_path = temp_input.name
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_output:
-                temp_output_path = temp_output.name
-            
-            add_watermark_to_pdf_memory(
-                temp_input_path,
-                temp_output_path,
-                watermark_text
-            )
-
-            from werkzeug.datastructures import FileStorage
-            from io import BytesIO
-            
-            with open(temp_output_path, 'rb') as f:
-                watermarked_content = f.read()
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_upload:
-                temp_upload.write(watermarked_content)
-                temp_upload_path = temp_upload.name
-            
-            watermarked_file = FileStorage(
-                stream=open(temp_upload_path, 'rb'),
-                filename=f"watermarked_{original_filename}",
-                content_type='application/pdf'
-            )
-            
-            result = self.upload_pdf(
-                pdf_file=watermarked_file,
-                title=title,
-                artist=artist
-            )
-            
-            watermarked_file.close()
-            
-            if result:
-                result['watermarked'] = True
-                result['watermark_text'] = watermark_text
-            
-            return result
-            
-        except Exception as e:
-            print(f"Fail to upload: {e}")
-            return None
-        
-        finally:
-            for temp_file in [temp_input_path, temp_output_path, temp_upload_path]:
-                if temp_file and os.path.exists(temp_file):
-                    try:
-                        time.sleep(0.1)
-                        os.unlink(temp_file)
-                    except Exception as e:
-                        print(f"Fail to delete temp file {temp_file}: {e}")
     
     def get_all_images(self, max_results=100):
         try:
@@ -315,21 +188,35 @@ class CloudinaryService:
         
         return base_info
     
-    
     def get_public_id_from_url(self, url):
         try:
+            # Handle different URL formats
+            if '/upload/' not in url:
+                return None
+            
             parts = url.split('/upload/')
             if len(parts) < 2:
                 return None
             
             path_part = parts[1]
-            if path_part.startswith('v'):
-                path_part = '/'.join(path_part.split('/')[1:])
-
-            public_id_with_ext = path_part.split('?')[0]
-            public_id = '.'.join(public_id_with_ext.split('.')[:-1])
             
-            return public_id
+            # Remove version prefix if present (e.g., v1234567/)
+            if '/' in path_part:
+                path_segments = path_part.split('/')
+                # Check if first segment is a version number (starts with 'v')
+                if path_segments[0].startswith('v') and path_segments[0][1:].isdigit():
+                    path_segments = path_segments[1:]
+                path_part = '/'.join(path_segments)
+            
+            # Remove query parameters
+            if '?' in path_part:
+                path_part = path_part.split('?')[0]
+            
+            # Remove file extension
+            if '.' in path_part:
+                path_part = '.'.join(path_part.split('.')[:-1])
+            
+            return path_part
         except Exception as e:
             print(f"Fail to extract public_id from URL: {e}")
             return None
@@ -342,179 +229,11 @@ class CloudinaryService:
         elif '/raw/' in url or '/raw/upload/' in url:
             return "raw"
         else:
-            return "raw"
+            return "image"
     
     def get_file_info_by_url(self, url, include_binary=False):
-        try:
-            public_id = self.get_public_id_from_url(url)
-            if not public_id:
-                return None
-            
-            resource_type = self.get_resource_type_from_url(url)
-            cfg = cloudinary.config()
-            print(
-                f"[Cloudinary get_file_info_by_url] url={url}, "
-                f"derived_public_id={public_id}, "
-                f"resource_type={resource_type}, "
-                f"cloud_name={cfg.cloud_name}"
-            )
-            
-            # Try direct resource lookup
-            try:
-                result = cloudinary.api.resource(
-                    public_id,
-                    resource_type=resource_type
-                )
-                file_info = self._format_resource(result, resource_type)
-                
-                # Include binary for raw files if requested
-                if include_binary and resource_type == "raw":
-                    binary_result = self._fetch_pdf_binary(url)
-                    if binary_result:
-                        file_info['binary'] = binary_result['data']
-                        file_info['binary_length'] = binary_result['length']
-                    else:
-                        print(f"[Cloudinary get_file_info_by_url] Failed to fetch binary for {url}")
-                
-                return file_info
-                
-            except Exception as e:
-                # If direct lookup fails, fall back to search
-                msg = str(e)
-                if "Resource not found" not in msg:
-                    print(f"Fail to get file info by URL (direct lookup error): {e}")
-                    return None
-
-                try:
-                    print(f"[Cloudinary get_file_info_by_url] direct lookup 404, falling back to Search for public_id={public_id}")
-                    search = cloudinary.Search()
-                    search.expression(f'public_id="{public_id}"')
-                    search.max_results(1)
-                    search_result = search.execute()
-                    resources = search_result.get("resources", [])
-                    
-                    if resources:
-                        resource = resources[0]
-                        rt = resource.get("resource_type", resource_type)
-                        file_info = self._format_resource(resource, rt)
-                        
-                        # Include binary for raw files if requested
-                        if include_binary and rt == "raw":
-                            binary_result = self._fetch_pdf_binary(url)
-                            if binary_result:
-                                file_info['binary'] = binary_result['data']
-                                file_info['binary_length'] = binary_result['length']
-                        
-                        return file_info
-
-                    # Try with .pdf suffix for raw assets
-                    if resource_type == "raw":
-                        alt_public_id = f"{public_id}.pdf"
-                        print(f"[Cloudinary get_file_info_by_url] No match for '{public_id}', trying alt_public_id='{alt_public_id}'")
-                        
-                        try:
-                            result_alt = cloudinary.api.resource(
-                                alt_public_id,
-                                resource_type=resource_type
-                            )
-                            file_info = self._format_resource(result_alt, resource_type)
-                            
-                            # Include binary for raw files if requested
-                            if include_binary:
-                                binary_result = self._fetch_pdf_binary(url)
-                                if binary_result:
-                                    file_info['binary'] = binary_result['data']
-                                    file_info['binary_length'] = binary_result['length']
-                            
-                            return file_info
-                            
-                        except Exception as e_alt:
-                            print(f"[Cloudinary get_file_info_by_url] Alt direct lookup failed for '{alt_public_id}': {e_alt}")
-                            
-                            # Final fallback: Search by alt_public_id
-                            try:
-                                search_alt = cloudinary.Search()
-                                search_alt.expression(f'public_id="{alt_public_id}"')
-                                search_alt.max_results(1)
-                                search_result_alt = search_alt.execute()
-                                resources_alt = search_result_alt.get("resources", [])
-                                
-                                if resources_alt:
-                                    resource_alt = resources_alt[0]
-                                    rt_alt = resource_alt.get("resource_type", resource_type)
-                                    file_info = self._format_resource(resource_alt, rt_alt)
-                                    
-                                    # Include binary for raw files if requested
-                                    if include_binary and rt_alt == "raw":
-                                        binary_result = self._fetch_pdf_binary(url)
-                                        if binary_result:
-                                            file_info['binary'] = binary_result['data']
-                                            file_info['binary_length'] = binary_result['length']
-                                    
-                                    return file_info
-                                    
-                                print(f"[Cloudinary get_file_info_by_url] Search also did not find resource for alt_public_id={alt_public_id}")
-                            except Exception as e_alt_search:
-                                print(f"Fail to get file info by URL via Search (alt_public_id): {e_alt_search}")
-
-                    print(f"[Cloudinary get_file_info_by_url] Search also did not find resource for public_id={public_id}")
-                    return None
-                    
-                except Exception as e2:
-                    print(f"Fail to get file info by URL via Search: {e2}")
-                    return None
-                    
-        except Exception as e:
-            print(f"Fail to get file info by URL: {e}")
-            return None
-    
-    def _fetch_pdf_binary(self, pdf_url):
-        try:
-            # Extract public_id and generate signed URL for download
-            public_id = self.get_public_id_from_url(pdf_url)
-            if not public_id:
-                # Try direct fetch
-                response = requests.get(pdf_url, timeout=30)
-                if response.status_code == 200:
-                    return {
-                        'data': base64.b64encode(response.content).decode('ascii'),
-                        'length': len(response.content)
-                    }
-                return None
-            
-            # Generate signed URL with inline flag
-            cfg = cloudinary.config()
-            
-            # Try multiple URL formats
-            urls_to_try = [
-                # Original URL
-                pdf_url,
-                # URL with fl_inline flag
-                pdf_url.replace('/raw/upload/', '/raw/upload/fl_inline/'),
-                # API download URL with attachment=false
-                f"https://api.cloudinary.com/v1_1/{cfg.cloud_name}/raw/download?public_id={public_id}&attachment=false"
-            ]
-            
-            for url in urls_to_try:
-                try:
-                    response = requests.get(url, timeout=30)
-                    if response.status_code == 200:
-                        # Verify it's a PDF
-                        content_type = response.headers.get('content-type', '')
-                        if 'pdf' in content_type or response.content[:4] == b'%PDF':
-                            return {
-                                'data': base64.b64encode(response.content).decode('ascii'),
-                                'length': len(response.content)
-                            }
-                except Exception:
-                    continue
-            
-            print(f"[Cloudinary _fetch_pdf_binary] Failed to fetch PDF from all URL formats")
-            return None
-            
-        except Exception as e:
-            print(f"Error fetching PDF binary: {e}")
-            return None
+        return self.get_file_info_by_public_id(self.get_public_id_from_url(url), 
+                                                self.get_resource_type_from_url(url))
     
     def get_file_info_by_public_id(self, public_id, resource_type="raw"):
         try:
@@ -528,47 +247,8 @@ class CloudinaryService:
             return None
     
     def delete_file_by_url(self, url):
-        try:
-            public_id = self.get_public_id_from_url(url)
-            if not public_id:
-                return False
-            
-            resource_type = self.get_resource_type_from_url(url)
-            candidates = [public_id]
-            if resource_type == "raw":
-                candidates.append(f"{public_id}.pdf")
-
-            deleted_any = False
-            for pid in candidates:
-                ok = self.delete_file(pid, resource_type)
-                print(f"[Cloudinary delete_file_by_url] destroy(public_id='{pid}', resource_type='{resource_type}') -> {ok}")
-                deleted_any = deleted_any or ok
-
-            if deleted_any:
-                return True
-
-            try:
-                from cloudinary import Search
-                for pid in candidates:
-                    print(f"[Cloudinary delete_file_by_url] direct delete failed, searching for public_id='{pid}'")
-                    search = Search()
-                    search.expression(f'public_id="{pid}"')
-                    search.max_results(5)
-                    result = search.execute()
-                    resources = result.get("resources", [])
-                    for res in resources:
-                        actual_pid = res.get("public_id")
-                        rt = res.get("resource_type", resource_type)
-                        ok = self.delete_file(actual_pid, rt)
-                        print(f"[Cloudinary delete_file_by_url] destroy(actual_public_id='{actual_pid}', resource_type='{rt}') -> {ok}")
-                        deleted_any = deleted_any or ok
-                return deleted_any
-            except Exception as e:
-                print(f"[Cloudinary delete_file_by_url] Search-based delete failed: {e}")
-                return deleted_any
-        except Exception as e:
-            print(f"Fail to delete file by URL: {e}")
-            return False
+        return self.delete_file(self.get_public_id_from_url(url), 
+                               self.get_resource_type_from_url(url))
     
     def delete_file(self, public_id, resource_type="raw"):
         try:
@@ -629,7 +309,6 @@ class CloudinaryService:
             print(f"Fail to search files: {e}")
             return []
     
-    
     def get_optimized_url(self, public_id, width=None, height=None, resource_type="raw"):
         if resource_type == "raw":
             url, _ = cloudinary_url(
@@ -665,6 +344,8 @@ class CloudinaryService:
             )
             return url
         
+        return None
+    
     def get_optimized_url_from_url(self, url, width=None, height=None):
         public_id = self.get_public_id_from_url(url)
         resource_type = self.get_resource_type_from_url(url)

@@ -60,12 +60,12 @@ class SongsServices():
         db.session.commit()
         return song_model
 
-    def add_play_count(self, id):
+    def add_play_count(self, id, count=1):
         song = self.get_song_by_id(id)
         if not song:
             raise Exception(f"Song (id: {id}) is not found.")
         
-        song.play_count += 1
+        song.play_count += count
         db.session.commit()
         return song.play_count
     
@@ -75,6 +75,8 @@ class SongsServices():
             raise Exception(f"Song id {song_model.id} not found.")
         
         song.title = song_model.title if song_model.title else song.title
+        song.title_zhcn = song_model.title_zhcn if song_model.title_zhcn else song.title_zhcn
+        song.title_zhhk = song_model.title_zhhk if song_model.title_zhhk else song.title_zhhk
         song.artist = song_model.artist if song_model.artist else song.artist
         song.type = song_model.type if song_model.type else song.type
         song.release_date = song_model.release_date if song_model.release_date else song.release_date

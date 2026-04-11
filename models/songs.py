@@ -14,6 +14,8 @@ class SongsModel(db.Model):
         server_default=func.now()
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    title_zhcn: Mapped[str] = mapped_column(String(200), nullable=True)
+    title_zhhk: Mapped[str] = mapped_column(String(200), nullable=True)
     artist: Mapped[str] = mapped_column(String(100), nullable=False)
     type: Mapped[str] = mapped_column(String(20), nullable=False)
     release_date: Mapped[datetime] = mapped_column(nullable=False)
@@ -32,6 +34,8 @@ class SongsModel(db.Model):
         return {
             "id": self.id,
             "title": self.title,
+            "title_zhcn": self.title_zhcn,
+            "title_zhhk": self.title_zhhk,
             "artist": self.artist,
             "type": self.type,
             "release_date": self.release_date.isoformat() if self.release_date else None,

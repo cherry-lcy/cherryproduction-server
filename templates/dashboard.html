@@ -1,0 +1,486 @@
+<!-- templates/dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Log Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card h3 {
+            color: #667eea;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .stat-unit {
+            font-size: 0.8em;
+            color: #999;
+            margin-left: 5px;
+        }
+        
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .chart-card h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            border-left: 4px solid #667eea;
+            padding-left: 12px;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .path-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .path-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            font-family: monospace;
+        }
+        
+        .path-name {
+            color: #667eea;
+            font-weight: 500;
+        }
+        
+        .path-count {
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+        
+        .controls {
+            background: white;
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .days-selector {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .day-btn {
+            padding: 8px 16px;
+            border: none;
+            background: #f0f0f0;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        .day-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .refresh-btn {
+            padding: 8px 16px;
+            background: #764ba2;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .refresh-btn:hover {
+            background: #5a3a7a;
+        }
+        
+        @media (max-width: 768px) {
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stat-number {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Access Log Analytics Dashboard</h1>
+        
+        <div class="controls">
+            <div class="days-selector">
+                <button class="day-btn active" data-days="1">Last 24h</button>
+                <button class="day-btn" data-days="7">Last 7 days</button>
+                <button class="day-btn" data-days="30">Last 30 days</button>
+            </div>
+            <button class="refresh-btn" onclick="refreshData()">🔄 Refresh</button>
+        </div>
+        
+        <div class="stats-grid" id="statsGrid">
+            <!-- Stats will be loaded here -->
+        </div>
+        
+        <div class="chart-grid">
+            <div class="chart-card">
+                <h3>📈 Hourly Traffic Distribution</h3>
+                <div class="chart-container">
+                    <canvas id="hourlyChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-card">
+                <h3>📅 Daily Traffic Trend</h3>
+                <div class="chart-container">
+                    <canvas id="dailyChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-card">
+                <h3>🎯 HTTP Status Codes</h3>
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-card">
+                <h3>⏱️ Response Time Stats</h3>
+                <div class="chart-container" style="display: flex; align-items: center; justify-content: center;">
+                    <canvas id="responseTimeChart" style="max-height: 250px;"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-card">
+                <h3>🌐 Browser Distribution</h3>
+                <div class="chart-container">
+                    <canvas id="browserChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-card">
+                <h3>🔝 Most Popular Paths</h3>
+                <div class="path-list" id="pathList">
+                    <!-- Paths will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let charts = {};
+        let currentDays = 7;
+        
+        async function fetchData(days) {
+            const response = await fetch(`/dashboard/api/stats?days=${days}`);
+            return await response.json();
+        }
+        
+        function updateStats(data) {
+            const stats = data.total_stats;
+            const statsGrid = document.getElementById('statsGrid');
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <h3>Total Requests</h3>
+                    <div class="stat-number">${stats.total_requests.toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Unique Visitors</h3>
+                    <div class="stat-number">${stats.unique_ips.toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Avg Response Time</h3>
+                    <div class="stat-number">${stats.avg_response_time}<span class="stat-unit">ms</span></div>
+                </div>
+                <div class="stat-card">
+                    <h3>Success Rate</h3>
+                    <div class="stat-number">${stats.success_rate}<span class="stat-unit">%</span></div>
+                </div>
+                <div class="stat-card">
+                    <h3>Error Rate</h3>
+                    <div class="stat-number">${stats.error_rate}<span class="stat-unit">%</span></div>
+                </div>
+            `;
+        }
+        
+        function updateHourlyChart(data) {
+            const hours = data.hourly_traffic.map(d => `${d.hour}:00`);
+            const counts = data.hourly_traffic.map(d => d.count);
+            
+            if (charts.hourly) charts.hourly.destroy();
+            
+            const ctx = document.getElementById('hourlyChart').getContext('2d');
+            charts.hourly = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: hours,
+                    datasets: [{
+                        label: 'Requests',
+                        data: counts,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+        
+        function updateDailyChart(data) {
+            const dates = data.daily_traffic.map(d => d.date);
+            const counts = data.daily_traffic.map(d => d.count);
+            
+            if (charts.daily) charts.daily.destroy();
+            
+            const ctx = document.getElementById('dailyChart').getContext('2d');
+            charts.daily = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Requests',
+                        data: counts,
+                        backgroundColor: '#764ba2',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+        
+        function updateStatusChart(data) {
+            const statuses = data.status_codes.map(d => d.status);
+            const counts = data.status_codes.map(d => d.count);
+            const colors = {
+                '200': '#4caf50',
+                '201': '#8bc34a',
+                '400': '#ff9800',
+                '404': '#ffc107',
+                '500': '#f44336'
+            };
+            
+            if (charts.status) charts.status.destroy();
+            
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            charts.status = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: statuses,
+                    datasets: [{
+                        data: counts,
+                        backgroundColor: statuses.map(s => colors[s] || '#999'),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+        
+        function updateResponseTimeChart(data) {
+            const stats = data.response_times;
+            
+            if (charts.responseTime) charts.responseTime.destroy();
+            
+            const ctx = document.getElementById('responseTimeChart').getContext('2d');
+            charts.responseTime = new Chart(ctx, {
+                type: 'gauge',
+                data: {
+                    datasets: [{
+                        data: [stats.avg],
+                        backgroundColor: stats.avg > 500 ? '#f44336' : (stats.avg > 200 ? '#ff9800' : '#4caf50'),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: () => `Average: ${stats.avg}ms\nP95: ${stats.p95}ms\nMin: ${stats.min}ms\nMax: ${stats.max}ms`
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Add custom text to canvas (simplified gauge)
+            const canvas = document.getElementById('responseTimeChart');
+            const originalDraw = charts.responseTime.draw;
+            charts.responseTime.draw = function() {
+                originalDraw.apply(this, arguments);
+                const ctx = this.ctx;
+                const centerX = this.width / 2;
+                const centerY = this.height / 2;
+                ctx.font = 'bold 24px Arial';
+                ctx.fillStyle = '#333';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${stats.avg}ms`, centerX, centerY);
+                ctx.font = '12px Arial';
+                ctx.fillStyle = '#999';
+                ctx.fillText(`P95: ${stats.p95}ms`, centerX, centerY + 30);
+            };
+            charts.responseTime.update();
+        }
+        
+        function updateBrowserChart(data) {
+            const browsers = data.user_agents.map(d => d.browser);
+            const counts = data.user_agents.map(d => d.count);
+            
+            if (charts.browser) charts.browser.destroy();
+            
+            const ctx = document.getElementById('browserChart').getContext('2d');
+            charts.browser = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: browsers,
+                    datasets: [{
+                        data: counts,
+                        backgroundColor: ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+        
+        function updatePathList(data) {
+            const pathList = document.getElementById('pathList');
+            pathList.innerHTML = data.popular_paths.map(path => `
+                <div class="path-item">
+                    <span class="path-name">${path.path}</span>
+                    <span class="path-count">${path.count.toLocaleString()} visits</span>
+                </div>
+            `).join('');
+        }
+        
+        async function refreshData() {
+            const data = await fetchData(currentDays);
+            updateStats(data);
+            updateHourlyChart(data);
+            updateDailyChart(data);
+            updateStatusChart(data);
+            updateResponseTimeChart(data);
+            updateBrowserChart(data);
+            updatePathList(data);
+        }
+        
+        // Setup day selector buttons
+        document.querySelectorAll('.day-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentDays = parseInt(btn.dataset.days);
+                refreshData();
+            });
+        });
+        
+        // Initial load
+        refreshData();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(refreshData, 30000);
+    </script>
+</body>
+</html>

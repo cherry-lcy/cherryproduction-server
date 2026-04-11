@@ -1,7 +1,7 @@
-# app.py
 from flask import Flask
-from extensions import db, cors, api
+from extensions import db, cors, api, access_logger
 from config import Config
+from dashboard import dashboard_bp
 
 def create_app():
     app = Flask(__name__)
@@ -9,9 +9,12 @@ def create_app():
     
     db.init_app(app)
     cors.init_app(app)
-
+    access_logger.init_app(app)
+    
+    app.register_blueprint(dashboard_bp)
+    
     from resources import register_routes
-    register_routes(api)  # must run before init_app so routes are registered
+    register_routes(api)
     api.init_app(app)
     
     with app.app_context():

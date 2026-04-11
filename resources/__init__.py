@@ -1,7 +1,7 @@
 from flask_restful import Api
 
 from .admin import AdminResource
-from .songs import SongsResources, SongResources, SearchResources
+from .songs import SongsResources, SongResources, SearchResources, LikeResources
 from .tags import TagsResources, TagResources, TagByIdResource
 from .artist import ArtistsResource
 from .type import TypesResource
@@ -24,3 +24,5 @@ def register_routes(api):
     api.add_resource(TitlesByArtistResource, "/api/titles/<artist>")
 
     api.add_resource(TypesResource, "/api/types")
+
+    api.add_resource(LikeResources, "/api/like/<int:id>")

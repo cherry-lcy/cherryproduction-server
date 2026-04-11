@@ -37,6 +37,3 @@ def add_watermark_to_pdf_memory(input_pdf, output_pdf, watermark_text):
     
     with open(output_pdf, "wb") as f:
         writer.write(f)
-    
-if __name__ == "__main__":
-    add_watermark_to_pdf_memory("Icarus.pdf", "Icarus_watermarked.pdf", "Cherry")
