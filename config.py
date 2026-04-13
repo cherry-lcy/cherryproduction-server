@@ -5,7 +5,7 @@ load_dotenv()
 
 class Config:
     if os.environ.get('FLASK_ENV') == 'production':
-        SQLALCHEMY_DATABASE_URI = 'sqlite:////home/cherrylai/music.db'    
+        SQLALCHEMY_DATABASE_URI = 'sqlite:////opt/render/project/src/data/music.db'
     else:
         SQLALCHEMY_DATABASE_URI = "mysql+mysqldb://root:Cherry5052005@localhost/Web_Ex"
     
