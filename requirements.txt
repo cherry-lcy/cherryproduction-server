@@ -15,11 +15,10 @@ idna==3.11
 itsdangerous==2.2.0
 Jinja2==3.1.6
 MarkupSafe==3.0.3
-mysqlclient==2.2.8
 pillow==12.1.1
 plum-dispatch==1.7.4
-psycopg2==2.9.11
-PyMySQL==1.1.2
+psycopg2-binary==2.9.11
+pymysql==1.1.2
 pypdf==6.7.5
 python-dotenv==1.2.2
 pytz==2026.1.post1

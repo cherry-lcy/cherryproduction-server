@@ -7,7 +7,7 @@ class Config:
     if os.environ.get('FLASK_ENV') == 'production':
         SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
     else:
-        SQLALCHEMY_DATABASE_URI = "mysql+mysqldb://root:Cherry5052005@localhost/Web_Ex"
+        SQLALCHEMY_DATABASE_URI = "mysql+pymysql://root:Cherry5052005@localhost/Web_Ex"
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
