@@ -37,10 +37,10 @@ def create_app():
     register_routes(api)
     api.init_app(app)
     
-    # with app.app_context():
-    #     from models.songs import SongsModel
-    #     from models.tags import TagsModel
-    #     db.create_all()
+    with app.app_context():
+        from models.songs import SongsModel
+        from models.tags import TagsModel
+        db.create_all()
     
     print("App created successfully")
     return app
