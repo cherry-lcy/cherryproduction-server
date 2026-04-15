@@ -14,6 +14,9 @@ def register_routes(api):
     api.add_resource(SongsResources, "/api/songs")
     api.add_resource(SongResources, "/api/song/<int:id>")
     api.add_resource(SearchResources, "/api/songs/search")
+    api.add_resource(UploadAudioResource, "/api/upload-audio")
+    api.add_resource(UploadImageResource, "/api/upload-image")
+    api.add_resource(UploadPdfResource, "/api/upload-pdf")
             
     api.add_resource(TagsResources, "/api/tags")
     api.add_resource(TagResources, "/api/tags/<title>")
@@ -29,6 +32,3 @@ def register_routes(api):
     api.add_resource(LikeResources, "/api/like/<int:id>")
 
     api.add_resource(UploadResource, "/api/upload-signature")
-    api.add_resource(UploadAudioResource, "/api/upload-audio")
-    api.add_resource(UploadImageResource, "/api/upload-image")
-    api.add_resource(UploadPdfResource, "/api/upload-pdf")
