@@ -23,7 +23,7 @@ class UploadResource(Resource):
         return jsonify({
             'signature': signature,
             'timestamp': timestamp,
-            'api_key': os.environ('CLOUDINARY_API_KEY'),
-            'cloud_name': os.environ('CLOUDINARY_CLOUD_NAME'),
+            'api_key': os.environ.get('CLOUDINARY_API_KEY'),
+            'cloud_name': os.environ.get('CLOUDINARY_CLOUD_NAME'),
             'folder': 'music_site'
         })
