@@ -14,16 +14,16 @@ class SongsResources(Resource):
         for song in songs:
             song_data = song.serialize()
             
-            if song_data.get('cover_url'):
-                cover_info = CloudinaryService().get_file_info_by_url(song_data['cover_url'])
-                song_data['cover'] = {
-                    'url': cover_info.get('url') if cover_info else None,
-                    'bytes': cover_info.get('bytes') if cover_info else None,
-                    'width': cover_info.get('width') if cover_info else None,
-                    'height': cover_info.get('height') if cover_info else None
-                }
-            else:
-                song_data['cover'] = None
+            # if song_data.get('cover_url'):
+            #     cover_info = CloudinaryService().get_file_info_by_url(song_data['cover_url'])
+            #     song_data['cover'] = {
+            #         'url': cover_info.get('url') if cover_info else None,
+            #         'bytes': cover_info.get('bytes') if cover_info else None,
+            #         'width': cover_info.get('width') if cover_info else None,
+            #         'height': cover_info.get('height') if cover_info else None
+            #     }
+            # else:
+            #     song_data['cover'] = None
             
             songs_with_covers.append(song_data)
         
@@ -42,29 +42,32 @@ class SongsResources(Resource):
             new_type = request.form.get("type")
             new_release_date = request.form.get("release_date")
             new_video_url = request.form.get("video_url")
+            new_audio_url = request.form.get("audio_url")
+            new_pdf_url = request.form.get("pdf_url")
+            new_cover_url = request.form.get("cover_url")
 
-            audio = request.files.get("audio")
-            pdf = request.files.get("pdf")
-            cover = request.files.get("cover")
+            # audio = request.files.get("audio")
+            # pdf = request.files.get("pdf")
+            # cover = request.files.get("cover")
 
-            cloudinary_service = CloudinaryService()
+            # cloudinary_service = CloudinaryService()
             
-            audio_info = cloudinary_service.upload_audio(
-                audio_file=audio, 
-                title=new_title, 
-                artist=new_artist
-            )
+            # audio_info = cloudinary_service.upload_audio(
+            #     audio_file=audio, 
+            #     title=new_title, 
+            #     artist=new_artist
+            # )
             
-            pdf_info = cloudinary_service.upload_image(
-                image_file=pdf, 
-                title=new_title,
-                folder="pdf"
-            )
+            # pdf_info = cloudinary_service.upload_image(
+            #     image_file=pdf, 
+            #     title=new_title,
+            #     folder="pdf"
+            # )
             
-            cover_info = cloudinary_service.upload_image(
-                image_file=cover, 
-                title=new_title
-            )
+            # cover_info = cloudinary_service.upload_image(
+            #     image_file=cover, 
+            #     title=new_title
+            # )
 
             song_model = SongsModel(
                 title=new_title, 
@@ -73,21 +76,15 @@ class SongsResources(Resource):
                 artist=new_artist, 
                 type=new_type,
                 release_date=new_release_date, 
-                audio_url=audio_info["url"], 
+                audio_url=new_audio_url, 
                 video_url=new_video_url, 
-                pdf_url=pdf_info["url"], 
-                cover_url=cover_info["url"]
+                pdf_url=new_pdf_url, 
+                cover_url=new_cover_url
             )
             
             song_model = SongsServices().add_song(song_model)
             
             song_data = song_model.serialize()
-            song_data['cover'] = {
-                'url': cover_info['url'],
-                'bytes': cover_info['bytes'],
-                'width': cover_info.get('width'),
-                'height': cover_info.get('height')
-            }
 
             return {
                 "song": song_data
@@ -128,37 +125,37 @@ class SongResources(Resource):
             
             song_data = song_model.serialize()
             
-            if song_model.audio_url:
-                audio_info = cloudinary_service.get_file_info_by_url(song_model.audio_url)
-                song_data['audio'] = {
-                    'bytes': audio_info.get('bytes') if audio_info else None,
-                    'duration': audio_info.get('duration') if audio_info else None,
-                    'format': audio_info.get('format') if audio_info else None
-                }
-            else:
-                song_data['audio'] = None
+            # if song_model.audio_url:
+            #     audio_info = cloudinary_service.get_file_info_by_url(song_model.audio_url)
+            #     song_data['audio'] = {
+            #         'bytes': audio_info.get('bytes') if audio_info else None,
+            #         'duration': audio_info.get('duration') if audio_info else None,
+            #         'format': audio_info.get('format') if audio_info else None
+            #     }
+            # else:
+            #     song_data['audio'] = None
             
-            if song_model.pdf_url:
-                pdf_info = cloudinary_service.get_file_info_by_url(song_model.pdf_url)
-                song_data['pdf'] = {
-                    'url': pdf_info.get('url') if pdf_info else None,
-                    'bytes': pdf_info.get('bytes') if pdf_info else None,
-                    'width': pdf_info.get('width') if pdf_info else None,
-                    'height': pdf_info.get('height') if pdf_info else None
-                }
-            else:
-                song_data['pdf'] = None
+            # if song_model.pdf_url:
+            #     pdf_info = cloudinary_service.get_file_info_by_url(song_model.pdf_url)
+            #     song_data['pdf'] = {
+            #         'url': pdf_info.get('url') if pdf_info else None,
+            #         'bytes': pdf_info.get('bytes') if pdf_info else None,
+            #         'width': pdf_info.get('width') if pdf_info else None,
+            #         'height': pdf_info.get('height') if pdf_info else None
+            #     }
+            # else:
+            #     song_data['pdf'] = None
             
-            if song_model.cover_url:
-                cover_info = cloudinary_service.get_file_info_by_url(song_model.cover_url)
-                song_data['cover'] = {
-                    'url': cover_info.get('url') if cover_info else None,
-                    'bytes': cover_info.get('bytes') if cover_info else None,
-                    'width': cover_info.get('width') if cover_info else None,
-                    'height': cover_info.get('height') if cover_info else None
-                }
-            else:
-                song_data['cover'] = None
+            # if song_model.cover_url:
+            #     cover_info = cloudinary_service.get_file_info_by_url(song_model.cover_url)
+            #     song_data['cover'] = {
+            #         'url': cover_info.get('url') if cover_info else None,
+            #         'bytes': cover_info.get('bytes') if cover_info else None,
+            #         'width': cover_info.get('width') if cover_info else None,
+            #         'height': cover_info.get('height') if cover_info else None
+            #     }
+            # else:
+            #     song_data['cover'] = None
 
             return {"data": song_data}, 200
         else:
@@ -259,14 +256,14 @@ class SearchResources(Resource):
                 if not (title_match or artist_match or type_match or zhcn_match or zhhk_match):
                     continue
             
-            if song_data.get('cover_url'):
-                cover_info = cloudinary_service.get_file_info_by_url(song_data['cover_url'])
-                song_data['cover'] = {
-                    'url': cover_info.get('url') if cover_info else None,
-                    'bytes': cover_info.get('bytes') if cover_info else None
-                }
-            else:
-                song_data['cover'] = None
+            # if song_data.get('cover_url'):
+            #     cover_info = cloudinary_service.get_file_info_by_url(song_data['cover_url'])
+            #     song_data['cover'] = {
+            #         'url': cover_info.get('url') if cover_info else None,
+            #         'bytes': cover_info.get('bytes') if cover_info else None
+            #     }
+            # else:
+            #     song_data['cover'] = None
             
             tags = tags_service.get_tag_by_sid(song.id)
             song_data['tags'] = [tag.tag for tag in tags]

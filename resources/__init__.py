@@ -6,6 +6,7 @@ from .tags import TagsResources, TagResources, TagByIdResource
 from .artist import ArtistsResource
 from .type import TypesResource
 from .title import TitlesResource, TitlesByArtistResource
+from .upload import UploadResource
 
 def register_routes(api):
     api.add_resource(AdminResource, "/api/admin")
@@ -26,3 +27,5 @@ def register_routes(api):
     api.add_resource(TypesResource, "/api/types")
 
     api.add_resource(LikeResources, "/api/like/<int:id>")
+
+    api.add_resource(UploadResource, "/api/upload-signature")
