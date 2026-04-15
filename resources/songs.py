@@ -1,3 +1,4 @@
+import time
 from flask_restful import Resource
 from flask import request
 from services.songs import SongsServices
@@ -13,18 +14,6 @@ class SongsResources(Resource):
         songs_with_covers = []
         for song in songs:
             song_data = song.serialize()
-            
-            # if song_data.get('cover_url'):
-            #     cover_info = CloudinaryService().get_file_info_by_url(song_data['cover_url'])
-            #     song_data['cover'] = {
-            #         'url': cover_info.get('url') if cover_info else None,
-            #         'bytes': cover_info.get('bytes') if cover_info else None,
-            #         'width': cover_info.get('width') if cover_info else None,
-            #         'height': cover_info.get('height') if cover_info else None
-            #     }
-            # else:
-            #     song_data['cover'] = None
-            
             songs_with_covers.append(song_data)
         
         return {
@@ -45,29 +34,6 @@ class SongsResources(Resource):
             new_audio_url = request.form.get("audio_url")
             new_pdf_url = request.form.get("pdf_url")
             new_cover_url = request.form.get("cover_url")
-
-            # audio = request.files.get("audio")
-            # pdf = request.files.get("pdf")
-            # cover = request.files.get("cover")
-
-            # cloudinary_service = CloudinaryService()
-            
-            # audio_info = cloudinary_service.upload_audio(
-            #     audio_file=audio, 
-            #     title=new_title, 
-            #     artist=new_artist
-            # )
-            
-            # pdf_info = cloudinary_service.upload_image(
-            #     image_file=pdf, 
-            #     title=new_title,
-            #     folder="pdf"
-            # )
-            
-            # cover_info = cloudinary_service.upload_image(
-            #     image_file=cover, 
-            #     title=new_title
-            # )
 
             song_model = SongsModel(
                 title=new_title, 
@@ -124,38 +90,6 @@ class SongResources(Resource):
             cloudinary_service = CloudinaryService()
             
             song_data = song_model.serialize()
-            
-            # if song_model.audio_url:
-            #     audio_info = cloudinary_service.get_file_info_by_url(song_model.audio_url)
-            #     song_data['audio'] = {
-            #         'bytes': audio_info.get('bytes') if audio_info else None,
-            #         'duration': audio_info.get('duration') if audio_info else None,
-            #         'format': audio_info.get('format') if audio_info else None
-            #     }
-            # else:
-            #     song_data['audio'] = None
-            
-            # if song_model.pdf_url:
-            #     pdf_info = cloudinary_service.get_file_info_by_url(song_model.pdf_url)
-            #     song_data['pdf'] = {
-            #         'url': pdf_info.get('url') if pdf_info else None,
-            #         'bytes': pdf_info.get('bytes') if pdf_info else None,
-            #         'width': pdf_info.get('width') if pdf_info else None,
-            #         'height': pdf_info.get('height') if pdf_info else None
-            #     }
-            # else:
-            #     song_data['pdf'] = None
-            
-            # if song_model.cover_url:
-            #     cover_info = cloudinary_service.get_file_info_by_url(song_model.cover_url)
-            #     song_data['cover'] = {
-            #         'url': cover_info.get('url') if cover_info else None,
-            #         'bytes': cover_info.get('bytes') if cover_info else None,
-            #         'width': cover_info.get('width') if cover_info else None,
-            #         'height': cover_info.get('height') if cover_info else None
-            #     }
-            # else:
-            #     song_data['cover'] = None
 
             return {"data": song_data}, 200
         else:
@@ -163,9 +97,6 @@ class SongResources(Resource):
         
     @admin_required
     def put(self, id):
-        """
-        update song information
-        """
         try:
             new_song = request.json
 
@@ -178,7 +109,6 @@ class SongResources(Resource):
                 new_video_url = new_song.get("video_url", None)
                 new_pdf_url = new_song.get("pdf_url", None)
                 new_cover_url = new_song.get("cover_url", None)
-                new_title = new_song.get("title", None)
 
                 song_model = SongsModel(id=id, title=new_title, artist=new_artist, type=new_type, release_date=new_release_date, audio_url=new_audio_url, video_url=new_video_url, pdf_url=new_pdf_url, cover_url=new_cover_url)
                 song_model = SongsServices().update_song(song_model)
@@ -205,7 +135,7 @@ class SongResources(Resource):
                 return {"error": f"Fail to delete song (id: {id})"}, 400
         except Exception as err:
             return {"error": f"{err}"}, 400
-        
+
 class SearchResources(Resource):
     def get(self):
         title = request.args.get('title', '')
@@ -256,15 +186,6 @@ class SearchResources(Resource):
                 if not (title_match or artist_match or type_match or zhcn_match or zhhk_match):
                     continue
             
-            # if song_data.get('cover_url'):
-            #     cover_info = cloudinary_service.get_file_info_by_url(song_data['cover_url'])
-            #     song_data['cover'] = {
-            #         'url': cover_info.get('url') if cover_info else None,
-            #         'bytes': cover_info.get('bytes') if cover_info else None
-            #     }
-            # else:
-            #     song_data['cover'] = None
-            
             tags = tags_service.get_tag_by_sid(song.id)
             song_data['tags'] = [tag.tag for tag in tags]
             
@@ -305,7 +226,7 @@ class SearchResources(Resource):
                 "order": order
             }
         }, 200
-    
+
 class LikeResources(Resource):
     def get(self, id):
         try:
@@ -327,3 +248,94 @@ class LikeResources(Resource):
             return {"message":"success"}, 200
         except Exception as err:
             return {"error": f"{err}"}, 400
+
+class UploadAudioResource(Resource):
+    @admin_required
+    def post(self):
+        try:
+            audio_file = request.files.get('audio')
+            title = request.form.get('title')
+            artist = request.form.get('artist')
+            
+            if not audio_file:
+                return {"error": "No audio file provided"}, 400
+            if not title:
+                return {"error": "Title is required"}, 400
+            if not artist:
+                return {"error": "Artist is required"}, 400
+            
+            cloudinary_service = CloudinaryService()
+            result = cloudinary_service.upload_audio(audio_file, title, artist)
+            
+            if result:
+                return {
+                    "success": True,
+                    "audio_url": result['url'],
+                    "public_id": result['public_id'],
+                    "duration": result['duration'],
+                    "format": result['format'],
+                    "bytes": result['bytes']
+                }, 200
+            else:
+                return {"error": "Failed to upload audio"}, 500
+        except Exception as err:
+            return {"error": str(err)}, 500
+
+class UploadImageResource(Resource):
+    @admin_required
+    def post(self):
+        try:
+            image_file = request.files.get('image')
+            title = request.form.get('title')
+            folder = request.form.get('folder', 'covers')
+            
+            if not image_file:
+                return {"error": "No image file provided"}, 400
+            if not title:
+                return {"error": "Title is required"}, 400
+            
+            cloudinary_service = CloudinaryService()
+            result = cloudinary_service.upload_image(image_file, title, folder)
+            
+            if result:
+                return {
+                    "success": True,
+                    "image_url": result['url'],
+                    "public_id": result['public_id'],
+                    "width": result['width'],
+                    "height": result['height'],
+                    "format": result['format'],
+                    "bytes": result['bytes']
+                }, 200
+            else:
+                return {"error": "Failed to upload image"}, 500
+        except Exception as err:
+            return {"error": str(err)}, 500
+
+class UploadPdfResource(Resource):
+    @admin_required
+    def post(self):
+        try:
+            pdf_file = request.files.get('pdf')
+            title = request.form.get('title')
+            
+            if not pdf_file:
+                return {"error": "No PDF file provided"}, 400
+            if not title:
+                return {"error": "Title is required"}, 400
+            
+            cloudinary_service = CloudinaryService()
+            result = cloudinary_service.upload_image(pdf_file, title, "pdf")
+            
+            if result:
+                return {
+                    "success": True,
+                    "pdf_url": result['url'],
+                    "public_id": result['public_id'],
+                    "format": result['format'],
+                    "bytes": result['bytes']
+                }, 200
+            else:
+                return {"error": "Failed to upload PDF"}, 500
+        except Exception as err:
+            return {"error": str(err)}, 500

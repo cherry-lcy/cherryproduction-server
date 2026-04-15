@@ -2,17 +2,18 @@ import time
 from flask_restful import Resource
 import cloudinary.utils
 import os
-from flask import jsonify
+from flask import jsonify, request
 from utils.auth import admin_required
 
 class UploadResource(Resource):
     @admin_required
     def get(self):
         timestamp = int(time.time())
+        folder = request.args.get('folder', 'music_site')
         
         params = {
             'timestamp': timestamp,
-            'folder': 'music_site',
+            'folder': folder,
         }
         
         signature = cloudinary.utils.api_sign_request(
