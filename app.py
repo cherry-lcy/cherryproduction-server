@@ -2,6 +2,7 @@ import sys
 import traceback
 import os
 import logging
+from sqlalchemy import text
 
 logging.basicConfig(
     level=logging.INFO,
@@ -89,7 +90,7 @@ def _check_database():
     """Check if database is accessible"""
     try:
         from extensions import db
-        db.session.execute('SELECT 1')
+        db.session.execute(text('SELECT 1'))
         return True
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
