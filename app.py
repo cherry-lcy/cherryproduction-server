@@ -1,58 +1,109 @@
 import sys
 import traceback
 import os
+import logging
 
-print("=== Starting Flask app ===")
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+logger.info("=== Starting Flask app ===")
 
 try:
-    from flask import Flask
+    from flask import Flask, jsonify
     from extensions import db, cors, api, access_logger
     from config import Config
     from dashboard import dashboard_bp
-    print("Imports successful")
+    logger.info("Imports successful")
 except Exception as e:
-    print(f"Import failed: {e}")
+    logger.error(f"Import failed: {e}")
     traceback.print_exc()
     raise
 
 def create_app():
-    print("Creating app...")
+    logger.info("Creating app...")
     app = Flask(__name__)
     app.config.from_object(Config)
     
-    print(f"FLASK_ENV: {app.config.get('FLASK_ENV')}")
-    print(f"DATABASE_URL: {app.config.get('SQLALCHEMY_DATABASE_URI')}")
+    logger.info(f"FLASK_ENV: {app.config.get('FLASK_ENV')}")
+    # Mask database URL for security (only show first/last chars)
+    db_url = app.config.get('SQLALCHEMY_DATABASE_URI')
+    if db_url:
+        masked_url = db_url[:30] + "..." + db_url[-20:] if len(db_url) > 50 else db_url
+        logger.info(f"DATABASE_URL: {masked_url}")
     
     try:
         db.init_app(app)
         cors.init_app(app)
         access_logger.init_app(app)
-        print("Extensions initialized")
+        logger.info("Extensions initialized")
     except Exception as e:
-        print(f"Extension init failed: {e}")
+        logger.error(f"Extension init failed: {e}")
         traceback.print_exc()
+        raise
     
+    # Register blueprint
     app.register_blueprint(dashboard_bp)
+    logger.info("Dashboard blueprint registered")
     
+    # Register RESTful routes
     from resources import register_routes
     register_routes(api)
     api.init_app(app)
+    logger.info("RESTful routes registered")
     
-    with app.app_context():
-        from models.songs import SongsModel
-        from models.tags import TagsModel
-        db.create_all()
+    # Create tables
+    try:
+        with app.app_context():
+            # Import models inside app context to avoid circular imports
+            from models.songs import SongsModel
+            from models.tags import TagsModel
+            db.create_all()
+            logger.info("Database tables created/verified")
+    except Exception as e:
+        logger.error(f"Database table creation failed: {e}")
+        traceback.print_exc()
+        # Don't raise - let the app start even if DB has issues
+        # Tables might already exist
     
-    print("App created successfully")
+    logger.info("App created successfully")
     return app
 
+# Create app instance
 app = create_app()
 
+# Health check endpoints (must be registered after app creation)
 @app.route('/')
 @app.route('/health')
 def health():
-    return {"status": "ok", "message": "Flask is running"}
+    """Health check endpoint for Railway"""
+    return jsonify({
+        "status": "ok",
+        "message": "Flask is running",
+        "database_connected": _check_database()
+    })
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port, debug=False)
+def _check_database():
+    """Check if database is accessible"""
+    try:
+        from extensions import db
+        db.session.execute('SELECT 1')
+        return True
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        return False
+
+# Root endpoint with more info
+@app.route('/info')
+def info():
+    return jsonify({
+        "name": "Cherry Production API",
+        "version": "1.0.0",
+        "status": "running",
+        "endpoints": ["/", "/health", "/info", "/songs", "/api/..."]
+    })
+
+# The app variable is what Railway/Gunicorn will use
+# No if __name__ == '__main__' block needed for production
