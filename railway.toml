@@ -1,0 +1,12 @@
+[build]
+  builder = "nixpacks"
+
+[deploy]
+  port = 8080
+  healthcheck_path = "/health"
+  healthcheck_timeout = 5
+  restart_policy_type = "ON_FAILURE"
+  restart_policy_max_retries = 10
+  
+[deploy.preview]
+  port = 8080
