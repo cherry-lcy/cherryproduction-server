@@ -106,5 +106,84 @@ def info():
         "endpoints": ["/", "/health", "/info", "/songs", "/api/..."]
     })
 
-# The app variable is what Railway/Gunicorn will use
-# No if __name__ == '__main__' block needed for production
+# app.py - Add this new route for dynamic sitemap generation
+
+@app.route('/sitemap.xml')
+def generate_sitemap():
+    """
+    Dynamically generate sitemap.xml from database
+    This endpoint is served from the backend but will be proxied by Cloudflare
+    """
+    from models.songs import SongsModel
+    from datetime import date
+    import time
+    
+    # Base URL for your frontend (Cloudflare Pages)
+    # You can also read this from environment variable
+    base_url = os.environ.get('FRONTEND_URL', 'https://www.cherryproduction.cc')
+    
+    # Start building XML
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    
+    # ========== STATIC PAGES ==========
+    # Pages that don't change frequently
+    static_pages = [
+        ('/', 'daily', '1.0'),
+        ('/search', 'daily', '0.9'),
+        ('/privacy', 'yearly', '0.3'),
+    ]
+    
+    current_date = date.today().isoformat()
+    
+    for path, changefreq, priority in static_pages:
+        xml += f"""
+  <url>
+    <loc>{base_url}{path}</loc>
+    <lastmod>{current_date}</lastmod>
+    <changefreq>{changefreq}</changefreq>
+    <priority>{priority}</priority>
+  </url>"""
+    
+    # ========== DYNAMIC PAGES (Songs) ==========
+    # Fetch all songs from database
+    try:
+        songs = SongsModel.query.all()
+        
+        for song in songs:
+            # Determine last modified date
+            # Use release_date if available, otherwise created_at
+            if song.release_date:
+                lastmod = song.release_date.strftime('%Y-%m-%d')
+            elif song.created_at:
+                lastmod = song.created_at.strftime('%Y-%m-%d')
+            else:
+                lastmod = current_date
+            
+            # Generate URL for each song detail page
+            song_url = f"{base_url}/detail?id={song.id}"
+            
+            xml += f"""
+  <url>
+    <loc>{song_url}</loc>
+    <lastmod>{lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>"""
+        
+        app.logger.info(f"Generated sitemap with {len(songs)} songs")
+        
+    except Exception as e:
+        # Log error but still return sitemap with static pages
+        app.logger.error(f"Error generating dynamic sitemap: {e}")
+    
+    # Close the urlset tag
+    xml += '\n</urlset>'
+    
+    # Return as XML response with proper caching headers
+    from flask import Response
+    response = Response(xml, mimetype='application/xml')
+    response.headers['Cache-Control'] = 'public, max-age=3600'  # Cache for 1 hour
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    
+    return response
