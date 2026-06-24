@@ -1,4 +1,6 @@
+# resources/song_resource.py
 import time
+import re
 from flask_restful import Resource
 from flask import request
 from services.songs import SongsServices
@@ -6,6 +8,148 @@ from models.songs import SongsModel
 from services.tags import TagsServices
 from services.upload import CloudinaryService
 from utils.auth import admin_required
+
+# XSS Protection Utilities
+def sanitize_input(value):
+    """
+    Sanitize user input to prevent XSS attacks.
+    Removes dangerous HTML tags, attributes, and JavaScript protocols.
+    """
+    if not value or not isinstance(value, str):
+        return value
+    
+    # Remove <script> tags and their content (including variations)
+    value = re.sub(r'<script.*?>.*?</script>', '', value, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove <iframe> tags
+    value = re.sub(r'<iframe.*?>.*?</iframe>', '', value, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove <object> tags
+    value = re.sub(r'<object.*?>.*?</object>', '', value, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove <embed> tags
+    value = re.sub(r'<embed.*?>', '', value, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove on* event attributes (onclick, onerror, onload, etc.)
+    value = re.sub(r'\s+on\w+\s*=\s*["\'][^"\']*["\']', '', value, flags=re.IGNORECASE)
+    
+    # Remove javascript: protocol
+    value = re.sub(r'javascript\s*:', '', value, flags=re.IGNORECASE)
+    
+    # Remove vbscript: protocol
+    value = re.sub(r'vbscript\s*:', '', value, flags=re.IGNORECASE)
+    
+    # Remove data: protocol (used for base64 XSS)
+    value = re.sub(r'data\s*:', '', value, flags=re.IGNORECASE)
+    
+    # Remove HTML comments that might contain malicious code
+    value = re.sub(r'<!--.*?-->', '', value, flags=re.DOTALL)
+    
+    # Escape remaining HTML entities to be safe
+    # Note: This is a basic escape, consider using a proper HTML escaper in production
+    html_escape_table = {
+        '"': '&quot;',
+        "'": '&#x27;',
+        '>': '&gt;',
+        '<': '&lt;',
+        '&': '&amp;',
+    }
+    value = ''.join(html_escape_table.get(c, c) for c in value)
+    
+    return value
+
+def sanitize_dict(data):
+    """
+    Recursively sanitize all string values in a dictionary.
+    """
+    if not data:
+        return data
+    
+    if isinstance(data, dict):
+        return {k: sanitize_dict(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [sanitize_dict(item) for item in data]
+    elif isinstance(data, str):
+        return sanitize_input(data)
+    else:
+        return data
+
+ALLOWED_SORT_BY = ['release_date', 'title', 'artist', 'play_count']
+ALLOWED_ORDERS = ['asc', 'desc']
+ALLOWED_TYPES = ['Transcription', 'Arrangement', 'Original', 'Cover']
+MAX_PER_PAGE = 50
+MAX_QUERY_LENGTH = 200
+MAX_TITLE_LENGTH = 200
+MAX_ARTIST_LENGTH = 100
+
+def validate_search_params(args):
+    """
+    Validate and sanitize search parameters.
+    Returns (sanitized_params, error_message)
+    """
+    page = args.get('page', 1, type=int)
+    per_page = args.get('per_page', 20, type=int)
+    sort_by = args.get('sort_by', 'release_date')
+    order = args.get('order', 'desc')
+    artist = args.get('artist', '')
+    title = args.get('title', '')
+    type_filter = args.get('type', '')
+    keyword = args.get('q', '')
+    language = args.get('language', 'en')
+    limit = args.get('limit', None, type=int)
+    
+    artist = sanitize_input(artist)
+    title = sanitize_input(title)
+    type_filter = sanitize_input(type_filter)
+    keyword = sanitize_input(keyword)
+    language = sanitize_input(language)
+    
+    if len(keyword) > MAX_QUERY_LENGTH:
+        keyword = keyword[:MAX_QUERY_LENGTH]
+    
+    if len(artist) > MAX_ARTIST_LENGTH:
+        artist = artist[:MAX_ARTIST_LENGTH]
+    
+    if len(title) > MAX_TITLE_LENGTH:
+        title = title[:MAX_TITLE_LENGTH]
+    
+    if sort_by not in ALLOWED_SORT_BY:
+        sort_by = 'release_date'
+    
+    if order not in ALLOWED_ORDERS:
+        order = 'desc'
+    
+    if type_filter and type_filter not in ALLOWED_TYPES:
+        type_filter = ''
+    
+    if language not in ['en', 'zh-CN', 'zh-TW']:
+        language = 'en'
+    
+    # Pagination validation
+    if per_page < 1:
+        per_page = 20
+    if per_page > MAX_PER_PAGE:
+        per_page = MAX_PER_PAGE
+    
+    if page < 1:
+        page = 1
+    
+    if limit is not None and limit < 1:
+        limit = None
+    
+    return {
+        'page': page,
+        'per_page': per_page,
+        'sort_by': sort_by,
+        'order': order,
+        'artist': artist,
+        'title': title,
+        'type': type_filter,
+        'keyword': keyword,
+        'language': language,
+        'limit': limit
+    }, None
+
 
 class SongsResources(Resource):
     def get(self):
@@ -24,16 +168,22 @@ class SongsResources(Resource):
     @admin_required
     def post(self):
         try:
-            new_title = request.form.get("title")
-            new_title_zhcn = request.form.get("title_zhcn")
-            new_title_zhhk = request.form.get("title_zhhk")
-            new_artist = request.form.get("artist")
-            new_type = request.form.get("type")
-            new_release_date = request.form.get("release_date")
-            new_video_url = request.form.get("video_url")
-            new_audio_url = request.form.get("audio_url")
-            new_pdf_url = request.form.get("pdf_url")
-            new_cover_url = request.form.get("cover_url")
+            new_title = sanitize_input(request.form.get("title"))
+            new_title_zhcn = sanitize_input(request.form.get("title_zhcn"))
+            new_title_zhhk = sanitize_input(request.form.get("title_zhhk"))
+            new_artist = sanitize_input(request.form.get("artist"))
+            new_type = sanitize_input(request.form.get("type"))
+            new_release_date = sanitize_input(request.form.get("release_date"))
+            new_video_url = sanitize_input(request.form.get("video_url"))
+            new_audio_url = sanitize_input(request.form.get("audio_url"))
+            new_pdf_url = sanitize_input(request.form.get("pdf_url"))
+            new_cover_url = sanitize_input(request.form.get("cover_url"))
+            
+            if not new_title or not new_artist:
+                return {"error": "Title and artist are required"}, 400
+            
+            if new_type and new_type not in ALLOWED_TYPES:
+                return {"error": f"Invalid type. Allowed: {', '.join(ALLOWED_TYPES)}"}, 400
 
             song_model = SongsModel(
                 title=new_title, 
@@ -62,9 +212,15 @@ class SongsResources(Resource):
     @admin_required
     def delete(self):
         try:
+            # Sanitize input data
             del_song = request.json
+            if del_song:
+                del_song = sanitize_dict(del_song)
 
-            song = SongsServices().get_songs_by_title_and_artist(del_song.get("title"), del_song.get("artist"))
+            song = SongsServices().get_songs_by_title_and_artist(
+                del_song.get("title"), 
+                del_song.get("artist")
+            )
 
             if song:
                 del_audio = CloudinaryService().delete_file_by_url(song.audio_url)
@@ -82,10 +238,18 @@ class SongsResources(Resource):
 
 class SongResources(Resource):
     def get(self, id):
-        song_model = SongsServices().get_song_by_id(id)
+        # Validate ID is a positive integer
+        try:
+            song_id = int(id)
+            if song_id < 1:
+                return {"error": "Invalid song ID"}, 400
+        except (ValueError, TypeError):
+            return {"error": "Invalid song ID format"}, 400
+        
+        song_model = SongsServices().get_song_by_id(song_id)
 
         if song_model:
-            SongsServices().add_play_count(id)
+            SongsServices().add_play_count(song_id)
 
             cloudinary_service = CloudinaryService()
             
@@ -93,12 +257,25 @@ class SongResources(Resource):
 
             return {"data": song_data}, 200
         else:
-            return {"error": f"Song (id: {id}) is not found."}, 404
+            return {"error": f"Song (id: {song_id}) is not found."}, 404
         
     @admin_required
     def put(self, id):
         try:
+            # Validate ID
+            try:
+                song_id = int(id)
+                if song_id < 1:
+                    return {"error": "Invalid song ID"}, 400
+            except (ValueError, TypeError):
+                return {"error": "Invalid song ID format"}, 400
+            
+            # Get and sanitize input
             new_song = request.json
+            if new_song:
+                new_song = sanitize_dict(new_song)
+            else:
+                return {"error": "No data provided"}, 400
 
             if new_song:
                 new_title = new_song.get("title", None)
@@ -109,8 +286,22 @@ class SongResources(Resource):
                 new_video_url = new_song.get("video_url", None)
                 new_pdf_url = new_song.get("pdf_url", None)
                 new_cover_url = new_song.get("cover_url", None)
+                
+                # Validate type if provided
+                if new_type and new_type not in ALLOWED_TYPES:
+                    return {"error": f"Invalid type. Allowed: {', '.join(ALLOWED_TYPES)}"}, 400
 
-                song_model = SongsModel(id=id, title=new_title, artist=new_artist, type=new_type, release_date=new_release_date, audio_url=new_audio_url, video_url=new_video_url, pdf_url=new_pdf_url, cover_url=new_cover_url)
+                song_model = SongsModel(
+                    id=song_id, 
+                    title=new_title, 
+                    artist=new_artist, 
+                    type=new_type, 
+                    release_date=new_release_date, 
+                    audio_url=new_audio_url, 
+                    video_url=new_video_url, 
+                    pdf_url=new_pdf_url, 
+                    cover_url=new_cover_url
+                )
                 song_model = SongsServices().update_song(song_model)
 
                 return {
@@ -122,33 +313,46 @@ class SongResources(Resource):
     @admin_required
     def delete(self, id):
         try:
-            song = SongsServices().get_song_by_id(id)
+            # Validate ID
+            try:
+                song_id = int(id)
+                if song_id < 1:
+                    return {"error": "Invalid song ID"}, 400
+            except (ValueError, TypeError):
+                return {"error": "Invalid song ID format"}, 400
+            
+            song = SongsServices().get_song_by_id(song_id)
 
             del_audio = CloudinaryService().delete_file_by_url(song.audio_url)
             del_pdf = CloudinaryService().delete_file_by_url(song.pdf_url)
             del_cover = CloudinaryService().delete_file_by_url(song.cover_url)
 
-            deleted_song = SongsServices().delete_song(id)
+            deleted_song = SongsServices().delete_song(song_id)
             if deleted_song and del_audio and del_pdf and del_cover:
                 return {"message": "success"}, 200
             else:
-                return {"error": f"Fail to delete song (id: {id})"}, 400
+                return {"error": f"Fail to delete song (id: {song_id})"}, 400
         except Exception as err:
             return {"error": f"{err}"}, 400
 
 class SearchResources(Resource):
     def get(self):
-        title = request.args.get('title', '')
-        artist = request.args.get('artist', '')
-        song_type = request.args.get('type', '')
-        keyword = request.args.get('q', '')
+        params, error = validate_search_params(request.args)
         
-        sort_by = request.args.get('sort_by', 'release_date')
-        order = request.args.get('order', 'desc')
-        limit = request.args.get('limit', None, type=int)
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
-        language = request.args.get('language', 'en')
+        if error:
+            return {"error": error}, 400
+        
+        # Extract sanitized parameters
+        title = params['title']
+        artist = params['artist']
+        song_type = params['type']
+        keyword = params['keyword']
+        sort_by = params['sort_by']
+        order = params['order']
+        limit = params['limit']
+        page = params['page']
+        per_page = params['per_page']
+        language = params['language']
         
         songs = SongsServices().get_all_songs()
         cloudinary_service = CloudinaryService()
@@ -188,6 +392,13 @@ class SearchResources(Resource):
             
             tags = tags_service.get_tag_by_sid(song.id)
             song_data['tags'] = [tag.tag for tag in tags]
+            
+            if language == 'zh-CN' and song.title_zhcn:
+                song_data['display_title'] = song.title_zhcn
+            elif language == 'zh-TW' and song.title_zhhk:
+                song_data['display_title'] = song.title_zhhk
+            else:
+                song_data['display_title'] = song_data.get('title', '')
             
             filtered_songs.append(song_data)
         
@@ -230,22 +441,46 @@ class SearchResources(Resource):
 class LikeResources(Resource):
     def get(self, id):
         try:
-            count = SongsServices().add_play_count(id, 0)
+            # Validate ID
+            try:
+                song_id = int(id)
+                if song_id < 1:
+                    return {"error": "Invalid song ID"}, 400
+            except (ValueError, TypeError):
+                return {"error": "Invalid song ID format"}, 400
+            
+            count = SongsServices().add_play_count(song_id, 0)
             return {"playCount": count}, 200
         except Exception as err:
             return {"error": f"{err}"}, 400
         
     def post(self, id):
         try:
-            count = SongsServices().add_play_count(id, 1)
+            # Validate ID
+            try:
+                song_id = int(id)
+                if song_id < 1:
+                    return {"error": "Invalid song ID"}, 400
+            except (ValueError, TypeError):
+                return {"error": "Invalid song ID format"}, 400
+            
+            count = SongsServices().add_play_count(song_id, 1)
             return {"playCount": count}, 200
         except Exception as err:
             return {"error": f"{err}"}, 400
 
     def delete(self, id):
-        try: 
-            count = SongsServices().add_play_count(id, -1)
-            return {"message":"success"}, 200
+        try:
+            # Validate ID
+            try:
+                song_id = int(id)
+                if song_id < 1:
+                    return {"error": "Invalid song ID"}, 400
+            except (ValueError, TypeError):
+                return {"error": "Invalid song ID format"}, 400
+            
+            count = SongsServices().add_play_count(song_id, -1)
+            return {"message": "success"}, 200
         except Exception as err:
             return {"error": f"{err}"}, 400
 
@@ -254,8 +489,8 @@ class UploadAudioResource(Resource):
     def post(self):
         try:
             audio_file = request.files.get('audio')
-            title = request.form.get('title')
-            artist = request.form.get('artist')
+            title = sanitize_input(request.form.get('title'))
+            artist = sanitize_input(request.form.get('artist'))
             
             if not audio_file:
                 return {"error": "No audio file provided"}, 400
@@ -263,6 +498,12 @@ class UploadAudioResource(Resource):
                 return {"error": "Title is required"}, 400
             if not artist:
                 return {"error": "Artist is required"}, 400
+            
+            # Validate title and artist length
+            if len(title) > MAX_TITLE_LENGTH:
+                return {"error": f"Title exceeds maximum length of {MAX_TITLE_LENGTH}"}, 400
+            if len(artist) > MAX_ARTIST_LENGTH:
+                return {"error": f"Artist exceeds maximum length of {MAX_ARTIST_LENGTH}"}, 400
             
             cloudinary_service = CloudinaryService()
             result = cloudinary_service.upload_audio(audio_file, title, artist)
@@ -286,13 +527,17 @@ class UploadImageResource(Resource):
     def post(self):
         try:
             image_file = request.files.get('image')
-            title = request.form.get('title')
-            folder = request.form.get('folder', 'covers')
+            title = sanitize_input(request.form.get('title'))
+            folder = sanitize_input(request.form.get('folder', 'covers'))
             
             if not image_file:
                 return {"error": "No image file provided"}, 400
             if not title:
                 return {"error": "Title is required"}, 400
+            
+            # Validate title length
+            if len(title) > MAX_TITLE_LENGTH:
+                return {"error": f"Title exceeds maximum length of {MAX_TITLE_LENGTH}"}, 400
             
             cloudinary_service = CloudinaryService()
             result = cloudinary_service.upload_image(image_file, title, folder)
@@ -317,12 +562,16 @@ class UploadPdfResource(Resource):
     def post(self):
         try:
             pdf_file = request.files.get('pdf')
-            title = request.form.get('title')
+            title = sanitize_input(request.form.get('title'))
             
             if not pdf_file:
                 return {"error": "No PDF file provided"}, 400
             if not title:
                 return {"error": "Title is required"}, 400
+            
+            # Validate title length
+            if len(title) > MAX_TITLE_LENGTH:
+                return {"error": f"Title exceeds maximum length of {MAX_TITLE_LENGTH}"}, 400
             
             cloudinary_service = CloudinaryService()
             result = cloudinary_service.upload_image(pdf_file, title, "pdf")

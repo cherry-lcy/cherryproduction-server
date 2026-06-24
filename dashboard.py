@@ -1,4 +1,3 @@
-# dashboard.py (fixed)
 from flask import Blueprint, render_template, jsonify, request  # Add 'request' here
 from extensions import access_logger
 from collections import Counter, defaultdict
