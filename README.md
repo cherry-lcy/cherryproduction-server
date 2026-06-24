@@ -155,4 +155,4 @@ This app is currently deployed on Render.com privately.
 
 ### Related Repositories and Sites
 Frontend Repository: https://github.com/cherry-lcy/cherryproduction
-Live Site: 
+Live Site: https://www.cherryproduction.cc
