@@ -103,3 +103,6 @@ def info():
         "status": "running",
         "endpoints": ["/", "/health", "/info", "/songs", "/api/..."]
     })
+
+# if __name__ == "__main__":
+#     app.run()
