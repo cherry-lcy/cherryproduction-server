@@ -125,12 +125,12 @@ class LogAnalyzer:
     def get_popular_paths(self, limit=10, days=7):
         """Get most visited paths"""
         logs = self.get_logs_last_days(days)
-        path_counts = Counter()
+        path_counts = Counter()  # Counter already has most_common()
         
         for log in logs:
             path = log.get('path', '')
             # Skip empty paths and API health checks
-            if path and path != '/health':
+            if path and path != '/health' and path != '/':
                 # Remove trailing slashes for consistency
                 if path != '/':
                     path = path.rstrip('/')
@@ -201,8 +201,12 @@ class LogAnalyzer:
             else:
                 ua_counts['Other'] += 1
         
+        # Convert defaultdict to dict first, then sort
+        # defaultdict doesn't have most_common(), so we convert to dict and sort
+        sorted_items = sorted(ua_counts.items(), key=lambda x: x[1], reverse=True)
+        
         return [{'browser': browser, 'count': count} 
-                for browser, count in ua_counts.most_common(limit)]
+                for browser, count in sorted_items[:limit]]
     
     def get_total_stats(self, days=7):
         """Get overall statistics"""
@@ -240,7 +244,6 @@ class LogAnalyzer:
             if ip is None:
                 ip = log.get('srcIp')
             if ip:
-                # Anonymized IP already, but still collect
                 ips.add(ip)
             
             # Sum durations
@@ -279,7 +282,7 @@ def get_stats():
     days = request.args.get('days', 7, type=int)
     
     try:
-        return jsonify({
+        data = {
             'total_stats': analyzer.get_total_stats(days),
             'hourly_traffic': analyzer.get_hourly_traffic(days),
             'daily_traffic': analyzer.get_daily_traffic(days),
@@ -287,12 +290,15 @@ def get_stats():
             'popular_paths': analyzer.get_popular_paths(10, days),
             'response_times': analyzer.get_response_time_stats(days),
             'user_agents': analyzer.get_top_user_agents(5, days)
-        })
+        }
+        return jsonify(data)
     except Exception as e:
-        # Log error and return empty data
         import logging
         logging.getLogger('flask_access').error(f"Dashboard API error: {e}")
+        import traceback
+        logging.getLogger('flask_access').error(traceback.format_exc())
         
+        # Return a valid response even on error
         return jsonify({
             'error': str(e),
             'total_stats': {'total_requests': 0, 'unique_ips': 0, 'avg_response_time': 0, 'error_rate': 0, 'success_rate': 0},
@@ -303,3 +309,8 @@ def get_stats():
             'response_times': {'avg': 0, 'max': 0, 'min': 0, 'p95': 0},
             'user_agents': []
         }), 500
+
+@dashboard_bp.route('/dashboard')
+def dashboard_redirect():
+    """Redirect /dashboard to / for convenience"""
+    return render_template('dashboard.html')
